@@ -1,6 +1,10 @@
 import argparse
 import time
 import logging
+import threading
+import queue
+import sys
+import select
 from typing import List, Optional
 from pathlib import Path
 import sys
@@ -32,6 +36,12 @@ class JerryInABox:
         self.last_chord_time = 0
         self.chord_timeout = 5  # seconds of silence before resetting progression
         self.running = False
+        self.keyboard_queue = queue.Queue()
+        self.keyboard_thread = None
+        self.keyboard_mapping = {
+            'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F', 'g': 'G',
+            '1': 'A#', '2': 'C#', '3': 'D#', '4': 'F#', '5': 'G#'
+        }
         self.last_chords = []  # Store last 5 chords
         self.max_chord_history = 5  # Number of chords to keep in history
         self.last_processed_progression = None  # Store the last processed progression
@@ -52,36 +62,13 @@ class JerryInABox:
                 
                 # Only consider chords with sufficient confidence
                 if confidence > 0.7:  # Adjust threshold as needed
-                    # If it's been a while since the last chord, reset the progression
-                    if current_time - self.last_chord_time > self.chord_timeout:
-                        self.current_progression = []
-                        self.last_chords = []
-                    
-                    # Update last chord time
-                    self.last_chord_time = current_time
-                    
-                    # Add chord to history if it's different from the last one
-                    if not self.current_progression or self.current_progression[-1] != chord:
-                        self.current_progression.append(chord)
-                        self.last_chords.append(chord)
-                        
-                        # Keep only the last N chords
-                        if len(self.last_chords) > self.max_chord_history:
-                            self.last_chords = self.last_chords[-self.max_chord_history:]
-                        
-                        # Only process progression if we have at least 2 chords
-                        if len(self.last_chords) >= 2:
-                            # Only process if the progression has changed since last time
-                            if tuple(self.last_chords) != self.last_processed_progression:
-                                self.last_processed_progression = tuple(self.last_chords)
-                                self._process_progression()
-                        
-                        # Always update the display when a new chord is detected
-                        self._display_current_state()
+                    self._add_chord_to_progression(chord)
+                    self._process_progression()
+                    self._display_current_state()
                         
             except Exception as e:
                 logger.error(f"Error processing audio: {e}")
-    
+
     def _display_current_state(self):
         """Display the current state of chord detection and matches"""
         import os
@@ -107,47 +94,161 @@ class JerryInABox:
                 print(f"   Next likely chords: {' -> '.join(next_chords) if next_chords else 'End of progression'}")
                 print(f"   Source: {song.source}")
                 print("-" * 80)
-    
+
     def _process_progression(self):
         """Process the current chord progression and find matching songs"""
         if not self.last_chords or len(self.last_chords) < 2:
             return
+            
+        # Make a copy to avoid modifying the original
+        progression_to_match = self.last_chords.copy()
         
-        # Use the last 5 chords for matching
-        progression_to_match = self.last_chords
+        try:
+            # Find similar progressions in the database
+            matches = self.song_db.find_similar_progressions(progression_to_match)
+            
+            if matches:
+                print("\n🎵 Possible Song Matches:")
+                print("-" * 60)
+                for i, (song, score, next_chords) in enumerate(matches[:3], 1):
+                    percentage = min(int(score * 100), 100)
+                    # Create a visual representation of the match confidence
+                    bar_length = 20
+                    filled_length = int(bar_length * score)
+                    bar = '█' * filled_length + '-' * (bar_length - filled_length)
+                    
+                    print(f"\n🎸 {song.title} - {song.artist}")
+                    print(f"   🎯 Match: {bar} {percentage}%")
+                    if next_chords:
+                        print(f"   ⏭️  Next: {' → '.join(next_chords[:3])}...")
+                    else:
+                        print("   ⏹️  End of progression")
+                    print(f"   📚 Source: {song.source}")
+            else:
+                print("\n🔍 No matching songs found.")
+                print("   Try adding more chords or check your input.")
+                
+        except Exception as e:
+            print(f"\n❌ Error finding matches: {e}")
         
-        # Find similar progressions in the database
-        self.last_matches = self.song_db.find_similar_progressions(progression_to_match)
-        
-        # Update the display
-        self._display_current_state()
+        print("\n" + "-" * 60)
+        print("🎹 Add more chords: A-G (basic) | 1-5 (sharps) | C (clear) | Q (quit)")
+        print("-" * 60)
+
+    def _clear_screen(self):
+        """Clear the terminal screen"""
+        print("\033[H\033[J", end="")  # ANSI escape codes to clear screen
     
+    def _print_header(self):
+        """Print the application header"""
+        print("=" * 60)
+        print("Jerry in a Box - Chord Recognition System".center(60))
+        print("=" * 60)
+        print("\nKeyboard input enabled. Press keys to input chords:")
+        print("  A-G: Basic chords")
+        print("  1-5: Sharps (1=A#, 2=C#, 3=D#, 4=F#, 5=G#)")
+        print("    C: Clear progression")
+        print("    Q: Quit\n")
+        print("-" * 60)
+    
+    def _keyboard_listener(self):
+        """Listen for keyboard input in a separate thread"""
+        self._clear_screen()
+        self._print_header()
+        
+        while self.running:
+            # Check if there's input ready (non-blocking)
+            if select.select([sys.stdin], [], [], 0.1)[0]:
+                key = sys.stdin.read(1).lower()
+                if key in self.keyboard_mapping or key in ['q', 'c']:
+                    self.keyboard_queue.put(key)
+                else:
+                    print(f"\nUnknown key: {key}. Use A-G, 1-5, C, or Q")
+
+    def _process_keyboard_input(self):
+        """Process keyboard input from the queue"""
+        try:
+            while not self.keyboard_queue.empty():
+                key = self.keyboard_queue.get_nowait()
+                
+                if key == 'q':  # Quit
+                    self.running = False
+                    return
+                elif key == 'c':  # Clear progression
+                    self.current_progression = []
+                    self.last_chords = []
+                    self._clear_screen()
+                    self._print_header()
+                    print("\n✅ Progression cleared\n")
+                    print("Start a new progression by entering chords (A-G, 1-5 for sharps)")
+                elif key in self.keyboard_mapping:
+                    chord = self.keyboard_mapping[key]
+                    self._add_chord_to_progression(chord)
+                    # The _add_chord_to_progression will handle the display
+        except queue.Empty:
+            pass
+
+    def _add_chord_to_progression(self, chord):
+        """Add a chord to the current progression and update display"""
+        current_time = time.time()
+        
+        # If it's been a while since the last chord, reset the progression
+        if current_time - self.last_chord_time > self.chord_timeout:
+            self.current_progression = []
+            self.last_chords = []
+        
+        # Add the chord if it's different from the last one
+        if not self.current_progression or self.current_progression[-1] != chord:
+            self.current_progression.append(chord)
+            self.last_chords.append(chord)
+            
+            # Keep only the last N chords
+            if len(self.last_chords) > self.max_chord_history:
+                self.last_chords = self.last_chords[-self.max_chord_history:]
+                
+            self.last_chord_time = current_time
+            
+            # Update the display
+            self._clear_screen()
+            self._print_header()
+            
+            # Show current progression
+            print("\n🎸 Current Progression:")
+            print(f"   {' → '.join(self.last_chords)}\n")
+            
+            # Process the progression if we have enough chords
+            if len(self.last_chords) >= 2:
+                self._process_progression()
+            else:
+                print("Add more chords to find matching songs...")
+                print("\n" + "-" * 60)
+
     def start(self):
         """Start the application"""
         self.running = True
         
+        # Start voice command processing in a separate thread
+        voice_thread = threading.Thread(target=self.voice_processor.start_listening, daemon=True)
+        voice_thread.start()
+        
+        # Start keyboard input in a separate thread
+        self.keyboard_thread = threading.Thread(target=self._keyboard_listener, daemon=True)
+        self.keyboard_thread.start()
+        
+        # Start audio processing
         try:
-            # Start the voice command processor in a separate thread
-            import threading
-            voice_thread = threading.Thread(target=self.voice_processor.start_listening, daemon=True)
-            voice_thread.start()
-            
-            print("Jerry in a Box - Chord Recognition System")
-            print("=" * 50)
-            print("Playing a song? I'll try to identify it!")
-            print("Say 'find a song' to search for a song's chords")
-            print("Press Ctrl+C to quit\n")
-            
-            # Start the audio processing
+            print("Starting Jerry in a Box...")
+            print("Press 'q' to quit, 'c' to clear progression")
             self.audio_processor.start_stream(self.audio_callback)
             
-            # Keep the main thread alive
+            # Main loop
             while self.running:
-                try:
-                    time.sleep(1)
-                except KeyboardInterrupt:
-                    print("\nShutting down...")
-                    self.running = False
+                self._process_keyboard_input()
+                time.sleep(0.1)
+                
+        except KeyboardInterrupt:
+            print("\nStopping Jerry in a Box...")
+            self.running = False
         
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
@@ -155,7 +256,7 @@ class JerryInABox:
         
         finally:
             self.stop()
-    
+
     def stop(self):
         """Stop the application"""
         self.running = False

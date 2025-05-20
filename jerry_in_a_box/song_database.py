@@ -76,9 +76,36 @@ class SongDatabase:
             ]
             json.dump(songs_data, f, indent=2)
 
+    def _find_best_match(self, pattern: List[str], progression: List[str]) -> Tuple[int, int]:
+        """Find the best matching segment of the pattern in the progression, with wrapping."""
+        best_match_length = 0
+        best_match_index = -1
+        
+        # Create an extended progression that wraps around to handle circular matching
+        extended_progression = progression * 2  # Duplicate to allow wrapping
+        
+        # Try all possible starting positions in the progression
+        for i in range(len(progression)):
+            match_length = 0
+            # Check how many consecutive chords match
+            for j in range(len(pattern)):
+                if i + j >= len(extended_progression):
+                    break
+                if extended_progression[i + j].lower() == pattern[j % len(pattern)].lower():
+                    match_length += 1
+                else:
+                    break
+            
+            if match_length > best_match_length:
+                best_match_length = match_length
+                best_match_index = i
+        
+        return best_match_index, best_match_length
+
     def find_similar_progressions(self, current_progression: List[str], top_n: int = 5) -> List[Tuple[Song, float, List[str]]]:
         """
         Find songs with progressions similar to the current progression.
+        Handles looping progressions by checking for circular matches.
         Returns a list of tuples: (song, similarity_score, next_chords)
         """
         if not current_progression:
@@ -88,31 +115,21 @@ class SongDatabase:
         
         for song in self.songs.values():
             song_progression = song.progression
-            
-            # Try to find a matching segment in the song's progression
-            best_match_length = 0
-            best_match_index = -1
-            
-            # Look for the current progression in the song's progression
-            for i in range(len(song_progression)):
-                match_length = 0
-                for j in range(min(len(current_progression), len(song_progression) - i)):
-                    if song_progression[i + j].lower() == current_progression[j].lower():
-                        match_length += 1
-                    else:
-                        break
+            if not song_progression:
+                continue
                 
-                if match_length > best_match_length:
-                    best_match_length = match_length
-                    best_match_index = i
+            # Find the best match in the song's progression
+            best_match_index, best_match_length = self._find_best_match(current_progression, song_progression)
             
-            if best_match_length > 0 and best_match_index + best_match_length < len(song_progression):
+            if best_match_length > 0:
                 # Calculate similarity score (0.0 to 1.0)
-                similarity = best_match_length / len(current_progression)
+                similarity = min(1.0, best_match_length / len(current_progression))
                 
-                # Get the next few chords in the progression
-                next_chord_index = best_match_index + best_match_length
-                next_chords = song_progression[next_chord_index:next_chord_index + 5]
+                # Get the next few chords in the progression (with wrapping)
+                next_chord_index = (best_match_index + best_match_length) % len(song_progression)
+                next_chords = []
+                for i in range(5):  # Get up to 5 next chords
+                    next_chords.append(song_progression[(next_chord_index + i) % len(song_progression)])
                 
                 results.append((song, similarity, next_chords))
         
