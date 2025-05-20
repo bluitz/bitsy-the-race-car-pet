@@ -30,8 +30,8 @@ except Exception as e:
     print(f"Warning: Could not initialize text-to-speech: {e}")
     tts_engine = None
 
-# Load OpenAI API key from environment variable
-if not openai.api_key:
+# Check if OpenAI API key is set
+if not os.getenv('OPENAI_API_KEY'):
     print("Warning: OPENAI_API_KEY environment variable not set. ChatGPT functionality will be disabled.")
 
 # Set up logging
@@ -197,7 +197,7 @@ class JerryInABox:
 
     def _ask_chatgpt(self, question):
         """Ask a question to ChatGPT and get a response"""
-        if not openai.api_key:
+        if not os.getenv('OPENAI_API_KEY'):
             print("\n❌ Error: OPENAI_API_KEY environment variable not set.")
             return
 
@@ -312,12 +312,9 @@ class JerryInABox:
 
             self.last_chord_time = current_time
 
-            # Update the display
-            self._clear_screen()
-            self._print_header()
-
-            # Show current progression
-            print("\n🎸 Current Progression:")
+            # Don't clear the screen to help with debugging
+            print("\n" + "="*60)
+            print("🎸 Current Progression:")
             print(f"   {' → '.join(self.last_chords)}\n")
 
             # Process the progression if we have enough chords
