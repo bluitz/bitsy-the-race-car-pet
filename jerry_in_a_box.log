@@ -1003,3 +1003,11 @@ NameError: name 'queue' is not defined. Did you forget to import 'queue'?
 2025-05-20 15:45:57,712 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
 2025-05-20 15:45:57,713 - openai._base_client - INFO - Retrying request to /chat/completions in 0.967885 seconds
 2025-05-20 15:45:58,756 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-05-20 15:48:39,639 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-05-20 15:48:39,641 - openai._base_client - INFO - Retrying request to /chat/completions in 0.455456 seconds
+2025-05-20 15:48:40,183 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-05-20 15:48:40,184 - openai._base_client - INFO - Retrying request to /chat/completions in 0.975324 seconds
+2025-05-20 15:48:41,258 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2025-05-20 15:48:57,150 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-20 15:49:18,178 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-20 15:49:39,784 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"

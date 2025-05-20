@@ -166,7 +166,7 @@ class JerryInABox:
 
     def _clear_screen(self):
         """Clear the terminal screen"""
-        print("\033[H\033[J", end="")  # ANSI escape codes to clear screen
+       # print("\033[H\033[J", end="")  # ANSI escape codes to clear screen
 
     def _print_header(self):
         """Print the application header"""
