@@ -9,7 +9,15 @@ class Song:
     title: str
     artist: str
     progression: List[str]
+    all_chords: List[str] = None
     source: str = "Jerry Garcia Song Book"
+    sections: Dict = None
+    
+    def __post_init__(self):
+        if self.all_chords is None:
+            self.all_chords = []
+        if self.sections is None:
+            self.sections = {}
 
 class SongDatabase:
     def __init__(self):

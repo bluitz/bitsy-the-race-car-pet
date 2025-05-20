@@ -35,32 +35,47 @@ class VoiceCommandProcessor:
             self.recognizer.adjust_for_ambient_noise(source, duration=2)
             logger.info("Ambient noise adjustment complete.")
 
+    def _is_command_match(self, text, command_phrase):
+        """Check if the recognized text matches a command phrase"""
+        # Split both the recognized text and command phrase into words
+        text_words = set(text.lower().split())
+        command_words = set(command_phrase.lower().split())
+        
+        # Check if all words in the command phrase are in the recognized text
+        return command_words.issubset(text_words)
+    
     def start_listening(self):
         """Start listening for voice commands"""
         self.is_listening = True
-        logger.info("Voice command processor started. Say 'find a song' to search for a song.")
+        print("\nVoice command processor started. Say 'find a song' to search for a song.")
         
         while self.is_listening:
             try:
                 with self.microphone as source:
-                    logger.info("Listening for command...")
-                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=5)
+                    print("\nListening for command...")
+                    audio = self.recognizer.listen(source, timeout=3, phrase_time_limit=4)
                 
                 try:
                     # Recognize speech using Google's speech recognition
                     text = self.recognizer.recognize_google(audio).lower()
-                    logger.info(f"Recognized: {text}")
+                    print(f"\nRecognized: {text}")
                     
                     # Check for matching commands
+                    command_matched = False
                     for command in self.commands:
-                        if command.phrase in text:
+                        if self._is_command_match(text, command.phrase):
+                            print(f"Executing command: {command.phrase}")
                             command.handler()
+                            command_matched = True
                             break
                     
+                    if not command_matched:
+                        print("Command not recognized. Try saying 'find a song'.")
+                    
                 except sr.UnknownValueError:
-                    logger.debug("Could not understand audio")
+                    print("Could not understand audio. Please try again.")
                 except sr.RequestError as e:
-                    logger.error(f"Could not request results; {e}")
+                    print(f"Error with the speech recognition service; {e}")
                 
             except KeyboardInterrupt:
                 logger.info("Stopping voice command processor...")
@@ -75,12 +90,12 @@ class VoiceCommandProcessor:
 
     def _handle_find_song(self):
         """Handle the 'find a song' command"""
-        print("\nWhat song would you like to find?")
+        print("\nWhat song would you like to find? (e.g., 'Row Jimmy')")
         
         try:
             with self.microphone as source:
-                print("Listening for song name...")
-                audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=10)
+                print("Listening for song name (speak now)...")
+                audio = self.recognizer.listen(source, timeout=8, phrase_time_limit=8)
                 
                 try:
                     song_name = self.recognizer.recognize_google(audio)
