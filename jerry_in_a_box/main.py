@@ -6,7 +6,9 @@ import queue
 import sys
 import select
 import os
-import openai
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 import pyttsx3
 import speech_recognition as sr
 from typing import List, Optional
@@ -29,7 +31,6 @@ except Exception as e:
     tts_engine = None
 
 # Load OpenAI API key from environment variable
-openai.api_key = os.getenv('OPENAI_API_KEY')
 if not openai.api_key:
     print("Warning: OPENAI_API_KEY environment variable not set. ChatGPT functionality will be disabled.")
 
@@ -63,12 +64,12 @@ class JerryInABox:
         self.last_chords = []  # Store last 5 chords
         self.max_chord_history = 5  # Number of chords to keep in history
         self.last_processed_progression = None  # Store the last processed progression
-        
+
         # Initialize speech recognition
         self.recognizer = sr.Recognizer()
         self.microphone = sr.Microphone()
         self._adjust_for_ambient_noise()
-        
+
     def _adjust_for_ambient_noise(self):
         """Adjust the recognizer for ambient noise"""
         with self.microphone as source:
@@ -78,22 +79,22 @@ class JerryInABox:
         """Callback function for audio processing"""
         if status:
             logger.warning(f"Audio status: {status}")
-        
+
         # Process the audio data to detect chords
         current_time = time.time()
-        
+
         # Only process audio if we have enough data
         if len(indata) > 0:
             try:
                 # Detect the chord from the audio
                 chord, confidence = self.audio_processor.detect_chord(indata[:, 0])
-                
+
                 # Only consider chords with sufficient confidence
                 if confidence > 0.7:  # Adjust threshold as needed
                     self._add_chord_to_progression(chord)
                     self._process_progression()
                     self._display_current_state()
-                        
+
             except Exception as e:
                 logger.error(f"Error processing audio: {e}")
 
@@ -101,21 +102,21 @@ class JerryInABox:
         """Display the current state of chord detection and matches"""
         import os
         os.system('cls' if os.name == 'nt' else 'clear')
-        
+
         print("Jerry in a Box - Chord Recognition")
         print("=" * 80)
-        
+
         # Show current chord and last 5 chords
         print(f"Current chord: {self.current_progression[-1] if self.current_progression else 'None'}")
         print(f"Last {self.max_chord_history} chords: {' -> '.join(self.last_chords) if self.last_chords else 'None'}")
         print(f"Full progression: {' -> '.join(self.current_progression) if self.current_progression else 'None'}")
         print("\nListening for chords... (Press Ctrl+C to quit)\n")
-        
+
         # Show recent matches if we have any
         if hasattr(self, 'last_matches') and self.last_matches:
             print("\nPossible Matches:")
             print("-" * 80)
-            
+
             for i, (song, score, next_chords) in enumerate(self.last_matches[:5], 1):
                 percentage = min(int(score * 100), 100)
                 print(f"{i}. {song.title} - {song.artist} ({percentage}% match)")
@@ -127,14 +128,14 @@ class JerryInABox:
         """Process the current chord progression and find matching songs"""
         if not self.last_chords or len(self.last_chords) < 2:
             return
-            
+
         # Make a copy to avoid modifying the original
         progression_to_match = self.last_chords.copy()
-        
+
         try:
             # Find similar progressions in the database
             matches = self.song_db.find_similar_progressions(progression_to_match)
-            
+
             if matches:
                 print("\n🎵 Possible Song Matches:")
                 print("-" * 60)
@@ -144,7 +145,7 @@ class JerryInABox:
                     bar_length = 20
                     filled_length = int(bar_length * score)
                     bar = '█' * filled_length + '-' * (bar_length - filled_length)
-                    
+
                     print(f"\n🎸 {song.title} - {song.artist}")
                     print(f"   🎯 Match: {bar} {percentage}%")
                     if next_chords:
@@ -155,10 +156,10 @@ class JerryInABox:
             else:
                 print("\n🔍 No matching songs found.")
                 print("   Try adding more chords or check your input.")
-                
+
         except Exception as e:
             print(f"\n❌ Error finding matches: {e}")
-        
+
         print("\n" + "-" * 60)
         print("🎹 Add more chords: A-G (basic) | 1-5 (sharps) | C (clear) | Q (quit)")
         print("-" * 60)
@@ -166,7 +167,7 @@ class JerryInABox:
     def _clear_screen(self):
         """Clear the terminal screen"""
         print("\033[H\033[J", end="")  # ANSI escape codes to clear screen
-    
+
     def _print_header(self):
         """Print the application header"""
         print("=" * 60)
@@ -179,12 +180,12 @@ class JerryInABox:
         print("    C: Clear progression")
         print("    Q: Quit\n")
         print("-" * 60)
-    
+
     def _keyboard_listener(self):
         """Listen for keyboard input in a separate thread"""
         self._clear_screen()
         self._print_header()
-        
+
         while self.running:
             # Check if there's input ready (non-blocking)
             if select.select([sys.stdin], [], [], 0.1)[0]:
@@ -199,32 +200,30 @@ class JerryInABox:
         if not openai.api_key:
             print("\n❌ Error: OPENAI_API_KEY environment variable not set.")
             return
-            
+
         print("\n🤔 Thinking...")
-        
+
         try:
             # Add user question to conversation history
             self.conversation_history.append({"role": "user", "content": question})
-            
+
             # Call OpenAI API
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful music theory assistant. Keep your answers concise and focused on music theory, especially related to guitar, chords, and music composition."}
-                ] + self.conversation_history[-6:],  # Keep last 3 exchanges for context
-                max_tokens=300,
-                temperature=0.7
-            )
-            
+            response = client.chat.completions.create(model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful music theory assistant. Keep your answers concise and focused on music theory, especially related to guitar, chords, and music composition."}
+            ] + self.conversation_history[-6:],  # Keep last 3 exchanges for context
+            max_tokens=300,
+            temperature=0.7)
+
             # Get the response text
-            answer = response.choices[0].message['content'].strip()
-            
+            answer = response.choices[0].message.content.strip()
+
             # Add assistant's response to conversation history
             self.conversation_history.append({"role": "assistant", "content": answer})
-            
+
             # Print the response
             print(f"\n🎵 {answer}")
-            
+
             # Speak the response
             if tts_engine is not None:
                 try:
@@ -236,20 +235,20 @@ class JerryInABox:
                         tts_engine.runAndWait()
                 except Exception as e:
                     print(f"\n⚠️ Could not speak the response: {e}")
-            
+
             return answer
-            
+
         except Exception as e:
             error_msg = f"\n❌ Error communicating with ChatGPT: {str(e)}"
             print(error_msg)
             return error_msg
-    
+
     def _process_keyboard_input(self):
         """Process keyboard input from the queue"""
         try:
             while not self.keyboard_queue.empty():
                 key = self.keyboard_queue.get_nowait()
-                
+
                 if key == 'q':  # Quit
                     self.running = False
                     return
@@ -264,7 +263,7 @@ class JerryInABox:
                     self._clear_screen()
                     self._print_header()
                     print("\n🎤 Please ask your question (speak now)...")
-                    
+
                     try:
                         with self.microphone as source:
                             print("Listening... (speak now)")
@@ -283,9 +282,9 @@ class JerryInABox:
                                 print(f"\n❌ Unexpected error: {e}")
                     except Exception as e:
                         print(f"\n❌ Could not access microphone: {e}")
-                    
+
                     print("\nPress any key to continue...")
-                    
+
                 elif key in self.keyboard_mapping:
                     chord = self.keyboard_mapping[key]
                     self._add_chord_to_progression(chord)
@@ -296,31 +295,31 @@ class JerryInABox:
     def _add_chord_to_progression(self, chord):
         """Add a chord to the current progression and update display"""
         current_time = time.time()
-        
+
         # If it's been a while since the last chord, reset the progression
         if current_time - self.last_chord_time > self.chord_timeout:
             self.current_progression = []
             self.last_chords = []
-        
+
         # Add the chord if it's different from the last one
         if not self.current_progression or self.current_progression[-1] != chord:
             self.current_progression.append(chord)
             self.last_chords.append(chord)
-            
+
             # Keep only the last N chords
             if len(self.last_chords) > self.max_chord_history:
                 self.last_chords = self.last_chords[-self.max_chord_history:]
-                
+
             self.last_chord_time = current_time
-            
+
             # Update the display
             self._clear_screen()
             self._print_header()
-            
+
             # Show current progression
             print("\n🎸 Current Progression:")
             print(f"   {' → '.join(self.last_chords)}\n")
-            
+
             # Process the progression if we have enough chords
             if len(self.last_chords) >= 2:
                 self._process_progression()
@@ -331,30 +330,30 @@ class JerryInABox:
     def start(self):
         """Start the application"""
         self.running = True
-        
+
         # Start keyboard input in a separate thread
         self.keyboard_thread = threading.Thread(target=self._keyboard_listener, daemon=True)
         self.keyboard_thread.start()
-        
+
         # Start audio processing
         try:
             print("Starting Jerry in a Box...")
             print("Press 'q' to quit, 'c' to clear progression, '?' to ask a question")
             self.audio_processor.start_stream(self.audio_callback)
-            
+
             # Main loop
             while self.running:
                 self._process_keyboard_input()
                 time.sleep(0.1)
-                
+
         except KeyboardInterrupt:
             print("\nStopping Jerry in a Box...")
             self.running = False
-        
+
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
             self.running = False
-        
+
         finally:
             self.stop()
 
@@ -368,10 +367,10 @@ def main():
     parser = argparse.ArgumentParser(description='Jerry in a Box - Guitar Chord Recognition System')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     args = parser.parse_args()
-    
+
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    
+
     try:
         app = JerryInABox()
         app.start()
