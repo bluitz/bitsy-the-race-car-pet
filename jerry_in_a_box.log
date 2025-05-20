@@ -945,3 +945,41 @@ NameError: name 'queue' is not defined. Did you forget to import 'queue'?
 2025-05-20 14:45:32,377 - __main__ - ERROR - Error processing audio: [Errno 32] Broken pipe
 2025-05-20 14:45:33,404 - __main__ - ERROR - Error processing audio: [Errno 32] Broken pipe
 2025-05-20 14:45:33,429 - __main__ - ERROR - Error processing audio: [Errno 32] Broken pipe
+2025-05-20 15:04:16,613 - jerry_in_a_box.voice_commands - INFO - Adjusting for ambient noise. Please wait...
+2025-05-20 15:04:18,597 - jerry_in_a_box.voice_commands - INFO - Ambient noise adjustment complete.
+2025-05-20 15:04:50,024 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: listening timed out while waiting for phrase to start
+2025-05-20 15:25:29,555 - jerry_in_a_box.voice_commands - INFO - Adjusting for ambient noise. Please wait...
+2025-05-20 15:25:31,540 - jerry_in_a_box.voice_commands - INFO - Ambient noise adjustment complete.
+2025-05-20 15:26:54,727 - jerry_in_a_box.voice_commands - INFO - Adjusting for ambient noise. Please wait...
+2025-05-20 15:26:56,713 - jerry_in_a_box.voice_commands - INFO - Ambient noise adjustment complete.
+2025-05-20 15:27:01,454 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:27:02,459 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:27:03,461 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:27:04,465 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:11,157 - jerry_in_a_box.voice_commands - INFO - Adjusting for ambient noise. Please wait...
+2025-05-20 15:28:13,144 - jerry_in_a_box.voice_commands - INFO - Ambient noise adjustment complete.
+2025-05-20 15:28:15,203 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:16,208 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:17,213 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:18,216 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:19,218 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:20,223 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:21,229 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:22,231 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:23,235 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:24,235 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:25,237 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:26,240 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:27,241 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:28,242 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:29,245 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:30,248 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:31,253 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:32,259 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:33,263 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:34,269 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:35,273 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:36,278 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:37,283 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:38,286 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager
+2025-05-20 15:28:39,290 - jerry_in_a_box.voice_commands - ERROR - Error in voice command processing: This audio source is already inside a context manager

@@ -5,16 +5,33 @@ import threading
 import queue
 import sys
 import select
+import os
+import openai
+import pyttsx3
+import speech_recognition as sr
 from typing import List, Optional
 from pathlib import Path
-import sys
 
 # Add the parent directory to the path so we can import our modules
 sys.path.append(str(Path(__file__).parent.parent))
 
 from jerry_in_a_box.audio_processor import AudioProcessor
 from jerry_in_a_box.song_database import SongDatabase
-from jerry_in_a_box.voice_commands import VoiceCommandProcessor
+
+# Initialize text-to-speech engine
+try:
+    tts_engine = pyttsx3.init()
+    # Set properties (optional)
+    tts_engine.setProperty('rate', 150)  # Speed of speech
+    tts_engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+except Exception as e:
+    print(f"Warning: Could not initialize text-to-speech: {e}")
+    tts_engine = None
+
+# Load OpenAI API key from environment variable
+openai.api_key = os.getenv('OPENAI_API_KEY')
+if not openai.api_key:
+    print("Warning: OPENAI_API_KEY environment variable not set. ChatGPT functionality will be disabled.")
 
 # Set up logging
 logging.basicConfig(
@@ -31,7 +48,6 @@ class JerryInABox:
     def __init__(self):
         self.audio_processor = AudioProcessor()
         self.song_db = SongDatabase()
-        self.voice_processor = VoiceCommandProcessor(self.song_db)
         self.current_progression = []
         self.last_chord_time = 0
         self.chord_timeout = 5  # seconds of silence before resetting progression
@@ -40,11 +56,23 @@ class JerryInABox:
         self.keyboard_thread = None
         self.keyboard_mapping = {
             'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D', 'e': 'E', 'f': 'F', 'g': 'G',
-            '1': 'A#', '2': 'C#', '3': 'D#', '4': 'F#', '5': 'G#'
+            '1': 'A#', '2': 'C#', '3': 'D#', '4': 'F#', '5': 'G#',
+            '?': '?'  # Add question mark for asking questions
         }
+        self.conversation_history = []  # Store conversation history for context
         self.last_chords = []  # Store last 5 chords
         self.max_chord_history = 5  # Number of chords to keep in history
         self.last_processed_progression = None  # Store the last processed progression
+        
+        # Initialize speech recognition
+        self.recognizer = sr.Recognizer()
+        self.microphone = sr.Microphone()
+        self._adjust_for_ambient_noise()
+        
+    def _adjust_for_ambient_noise(self):
+        """Adjust the recognizer for ambient noise"""
+        with self.microphone as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
     def audio_callback(self, indata, frames, time_info, status):
         """Callback function for audio processing"""
@@ -147,6 +175,7 @@ class JerryInABox:
         print("\nKeyboard input enabled. Press keys to input chords:")
         print("  A-G: Basic chords")
         print("  1-5: Sharps (1=A#, 2=C#, 3=D#, 4=F#, 5=G#)")
+        print("    ?: Ask a question (speak when prompted)")
         print("    C: Clear progression")
         print("    Q: Quit\n")
         print("-" * 60)
@@ -165,6 +194,56 @@ class JerryInABox:
                 else:
                     print(f"\nUnknown key: {key}. Use A-G, 1-5, C, or Q")
 
+    def _ask_chatgpt(self, question):
+        """Ask a question to ChatGPT and get a response"""
+        if not openai.api_key:
+            print("\n❌ Error: OPENAI_API_KEY environment variable not set.")
+            return
+            
+        print("\n🤔 Thinking...")
+        
+        try:
+            # Add user question to conversation history
+            self.conversation_history.append({"role": "user", "content": question})
+            
+            # Call OpenAI API
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful music theory assistant. Keep your answers concise and focused on music theory, especially related to guitar, chords, and music composition."}
+                ] + self.conversation_history[-6:],  # Keep last 3 exchanges for context
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            # Get the response text
+            answer = response.choices[0].message['content'].strip()
+            
+            # Add assistant's response to conversation history
+            self.conversation_history.append({"role": "assistant", "content": answer})
+            
+            # Print the response
+            print(f"\n🎵 {answer}")
+            
+            # Speak the response
+            if tts_engine is not None:
+                try:
+                    # Split long text into sentences to avoid TTS issues
+                    import re
+                    sentences = re.split(r'(?<=[.!?]) +', answer)
+                    for sentence in sentences:
+                        tts_engine.say(sentence)
+                        tts_engine.runAndWait()
+                except Exception as e:
+                    print(f"\n⚠️ Could not speak the response: {e}")
+            
+            return answer
+            
+        except Exception as e:
+            error_msg = f"\n❌ Error communicating with ChatGPT: {str(e)}"
+            print(error_msg)
+            return error_msg
+    
     def _process_keyboard_input(self):
         """Process keyboard input from the queue"""
         try:
@@ -181,6 +260,32 @@ class JerryInABox:
                     self._print_header()
                     print("\n✅ Progression cleared\n")
                     print("Start a new progression by entering chords (A-G, 1-5 for sharps)")
+                elif key == '?':  # Ask a question
+                    self._clear_screen()
+                    self._print_header()
+                    print("\n🎤 Please ask your question (speak now)...")
+                    
+                    try:
+                        with self.microphone as source:
+                            print("Listening... (speak now)")
+                            try:
+                                audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=10)
+                                question = self.recognizer.recognize_google(audio)
+                                print(f"\n❓ Your question: {question}")
+                                self._ask_chatgpt(question)
+                            except sr.WaitTimeoutError:
+                                print("\n⏱️  No speech detected. Please try again.")
+                            except sr.UnknownValueError:
+                                print("\n❌ Could not understand audio. Please try again.")
+                            except sr.RequestError as e:
+                                print(f"\n❌ Could not request results; {e}")
+                            except Exception as e:
+                                print(f"\n❌ Unexpected error: {e}")
+                    except Exception as e:
+                        print(f"\n❌ Could not access microphone: {e}")
+                    
+                    print("\nPress any key to continue...")
+                    
                 elif key in self.keyboard_mapping:
                     chord = self.keyboard_mapping[key]
                     self._add_chord_to_progression(chord)
@@ -227,10 +332,6 @@ class JerryInABox:
         """Start the application"""
         self.running = True
         
-        # Start voice command processing in a separate thread
-        voice_thread = threading.Thread(target=self.voice_processor.start_listening, daemon=True)
-        voice_thread.start()
-        
         # Start keyboard input in a separate thread
         self.keyboard_thread = threading.Thread(target=self._keyboard_listener, daemon=True)
         self.keyboard_thread.start()
@@ -238,7 +339,7 @@ class JerryInABox:
         # Start audio processing
         try:
             print("Starting Jerry in a Box...")
-            print("Press 'q' to quit, 'c' to clear progression")
+            print("Press 'q' to quit, 'c' to clear progression, '?' to ask a question")
             self.audio_processor.start_stream(self.audio_callback)
             
             # Main loop
@@ -261,7 +362,6 @@ class JerryInABox:
         """Stop the application"""
         self.running = False
         self.audio_processor.stop_stream()
-        self.voice_processor.stop_listening()
         print("\nThanks for using Jerry in a Box!")
 
 def main():
