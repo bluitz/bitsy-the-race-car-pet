@@ -1,6 +1,8 @@
 import numpy as np
 import sounddevice as sd
 import time
+from collections import Counter
+from scipy.fft import fft, fftfreq
 from .yin_pitch import YINPitchDetector
 
 class AudioProcessor:
@@ -15,6 +17,22 @@ class AudioProcessor:
         self.note_start_time = 0
         self.min_note_duration = 0.3  # Minimum duration to register a note (seconds)
         self.yin_detector = YINPitchDetector(sample_rate=sample_rate, buffer_size=chunk_size, threshold=threshold)
+        
+        # Chord detection settings
+        self.chord_history = []
+        self.max_history = 5  # Number of frames to consider for chord detection
+        self.chord_confidence_threshold = 0.6  # Minimum confidence to accept a chord
+        self.min_chord_duration = 0.2  # Minimum duration to register a chord change (seconds)
+        
+        # Define chord templates (intervals in semitones from root)
+        self.chord_templates = {
+            'maj': [0, 4, 7],      # Major: root, major third, perfect fifth
+            'min': [0, 3, 7],      # Minor: root, minor third, perfect fifth
+            '7': [0, 4, 7, 10],    # Dominant 7th: major triad + minor 7th
+            'maj7': [0, 4, 7, 11], # Major 7th: major triad + major 7th
+            'm7': [0, 3, 7, 10],   # Minor 7th: minor triad + minor 7th
+            '5': [0, 7]             # Power chord: root and fifth
+        }
 
     def start_stream(self, callback):
         """Start the audio stream with the given callback"""
@@ -96,42 +114,138 @@ class AudioProcessor:
             
         return None
     
+    def detect_notes_in_chord(self, audio_data, sample_rate=44100, num_peaks=6):
+        """
+        Detect multiple notes in a chord using FFT.
+        Returns a list of detected notes and their relative strengths.
+        """
+        # Convert stereo to mono if needed
+        if len(audio_data.shape) > 1 and audio_data.shape[1] == 2:
+            audio_data = np.mean(audio_data, axis=1)  # Convert to mono by averaging channels
+            
+        # Apply a window function to reduce spectral leakage
+        window = np.hanning(len(audio_data))
+        y = audio_data * window
+        
+        # Compute FFT
+        yf = fft(y)
+        xf = fftfreq(len(y), 1.0/sample_rate)
+        
+        # Get magnitude spectrum (only positive frequencies)
+        half_n = len(y) // 2
+        magnitudes = 2.0/len(y) * np.abs(yf[:half_n])
+        frequencies = xf[:half_n]
+        
+        # Find peaks in the magnitude spectrum
+        peaks = []
+        for i in range(1, len(magnitudes)-1):
+            if magnitudes[i] > magnitudes[i-1] and magnitudes[i] > magnitudes[i+1]:
+                if 80 <= frequencies[i] <= 1000:  # Guitar range
+                    peaks.append((frequencies[i], magnitudes[i]))
+        
+        # Sort peaks by magnitude and take the top ones
+        peaks.sort(key=lambda x: x[1], reverse=True)
+        top_peaks = peaks[:num_peaks]
+        
+        # Convert frequencies to notes
+        notes = []
+        for freq, mag in top_peaks:
+            note = self.freq_to_note(freq)
+            if note and note not in [n[0] for n in notes]:
+                notes.append((note, mag))
+        
+        return notes
+    
+    def identify_chord(self, notes):
+        """
+        Identify the most likely chord from a set of notes.
+        Returns the chord name and confidence level.
+        """
+        if not notes:
+            return "Unknown", 0.0
+            
+        # Count occurrences of each note
+        note_counter = Counter(notes)
+        
+        # Find the root note (most frequent note)
+        root_note = note_counter.most_common(1)[0][0]
+        
+        # Calculate intervals from root
+        note_order = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
+        root_idx = note_order.index(root_note)
+        
+        intervals = []
+        for note in set(notes):  # Remove duplicates
+            note_idx = note_order.index(note)
+            interval = (note_idx - root_idx) % 12
+            if interval > 0:  # Don't include root (0) in intervals
+                intervals.append(interval)
+        
+        # Match intervals to chord templates
+        best_match = None
+        best_score = 0
+        
+        for chord_name, template in self.chord_templates.items():
+            # Check if all template intervals are present
+            score = sum(1 for i in template[1:] if i in intervals)  # Skip root (0)
+            
+            # Normalize score
+            if len(template) > 1:  # Avoid division by zero
+                score = score / (len(template) - 1)
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = chord_name
+        
+        if best_score >= 0.5:  # Minimum threshold
+            chord_name = f"{root_note}{best_match if best_match != 'maj' else ''}"
+            return chord_name, min(best_score, 0.95)
+        
+        # If no good match, return just the root note
+        return root_note, 0.6
+    
     def detect_chord(self, audio_data, sample_rate=44100):
         """
-        Analyze audio data to detect the most likely note being played.
-        Returns the detected note and confidence level.
+        Analyze audio data to detect the most likely chord being played.
+        Returns the detected chord and confidence level.
         """
         current_time = time.time()
         
-        # Detect pitch using YIN algorithm
-        pitch, confidence = self.yin_detector.get_pitch(audio_data)
+        # Detect multiple notes in the chord
+        notes = self.detect_notes_in_chord(audio_data, sample_rate)
         
-        # Only process if we have a good confidence
-        if confidence < 0.7 or pitch < 80 or pitch > 1000:  # Guitar range
+        if not notes:
             return "Unknown", 0.0
         
-        # Convert frequency to note
-        note = self.freq_to_note(pitch)
+        # Extract just the note names
+        note_names = [note[0] for note in notes]
         
-        if note:
-            # Check if this is a new note or the same note held
-            if note != self.last_note:
-                # Only register the note if it's held for a minimum duration
-                if current_time - self.note_start_time >= self.min_note_duration:
-                    self.last_note = note
-                    self.last_chord = note
-                    self.last_chord_time = current_time
-                    self.note_start_time = current_time
-                    return note, min(confidence, 0.95)
-                else:
-                    # Reset the timer if the note changed too quickly
-                    self.note_start_time = current_time
-                    return "Unknown", 0.0
-            else:
-                # Same note, just update the time
-                return note, min(confidence, 0.95)
+        # Identify the chord
+        chord, confidence = self.identify_chord(note_names)
         
-        return "Unknown", 0.0
+        # Update chord history
+        self.chord_history.append((chord, current_time))
+        
+        # Only keep recent history
+        self.chord_history = [h for h in self.chord_history 
+                            if current_time - h[1] < self.min_chord_duration * self.max_history]
+        
+        # Get the most frequent chord in the history
+        if self.chord_history:
+            chord_counter = Counter([h[0] for h in self.chord_history])
+            most_common = chord_counter.most_common(1)[0]
+            
+            # Only update if we have enough confidence
+            if most_common[1] / len(self.chord_history) >= self.chord_confidence_threshold:
+                chord = most_common[0]
+                confidence = min(confidence * 1.2, 0.95)  # Slight boost for consistent detection
+        
+        # Only update if we have a good confidence or if it's a new chord
+        if confidence >= self.chord_confidence_threshold or chord != self.last_chord:
+            self.last_chord = chord
+            self.last_chord_time = current_time
+            
+        return chord, confidence
 
     @staticmethod
     def record_audio(duration=3, sample_rate=44100):

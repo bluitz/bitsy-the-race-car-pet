@@ -1011,3 +1011,15 @@ NameError: name 'queue' is not defined. Did you forget to import 'queue'?
 2025-05-20 15:48:57,150 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2025-05-20 15:49:18,178 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2025-05-20 15:49:39,784 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-20 16:26:28,878 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:28,981 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,086 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,190 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,291 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,393 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,495 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,601 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,701 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,806 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:29,910 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple
+2025-05-20 16:26:30,015 - jerry_in_a_box.main - ERROR - Error processing audio: list indices must be integers or slices, not tuple

@@ -1,5 +1,35 @@
 [
   {
+    "title": "Deep Elem Blues",
+    "artist": "Traditional, arr. by Grateful Dead",
+    "progression": [
+      "G", "G", "G", "G",
+      "C", "C", "G", "G",
+      "D7", "C", "G", "D7"
+    ],
+    "all_chords": ["G", "C", "D7"],
+    "source": "Traditional blues, Grateful Dead arrangement",
+    "sections": {
+      "Verse": {
+        "progression": "| G / / / | G / / / | G / / / | G / / / | | C / / / | C / / / | G / / / | G / / / | | D7 / / / | C / / / | G / / / | D7 / / / |",
+        "chords": [
+          "G", "G", "G", "G",
+          "G", "G", "G", "G",
+          "G", "G", "G", "G",
+          "G", "G", "G", "G",
+          "C", "C", "C", "C",
+          "C", "C", "C", "C",
+          "G", "G", "G", "G",
+          "G", "G", "G", "G",
+          "D7", "D7", "D7", "D7",
+          "C", "C", "C", "C",
+          "G", "G", "G", "G",
+          "D7", "D7", "D7", "D7"
+        ]
+      }
+    }
+  },
+  {
     "title": "Attics of My Life",
     "artist": "Jerry Garcia / Grateful Dead",
     "progression": [
