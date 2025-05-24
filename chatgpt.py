@@ -9,10 +9,12 @@ from contextlib import contextmanager
 import io
 import pyttsx3
 import subprocess
+import tempfile
 
 # Disable JACK to prevent error messages
 os.environ['JACK_NO_START_SERVER'] = '1'
 os.environ['JACK_NO_AUDIO_RESERVATION'] = '1'
+os.environ['AUDIODEV'] = 'hw:0,0'  # Use the first ALSA device
 
 # Load environment variables
 load_dotenv()
@@ -117,7 +119,7 @@ messages = [
 ]
 
 def speak_text(text):
-    """Speak the given text using text-to-speech"""
+    """Speak the given text using text-to-speech with Piper"""
     try:
         # Split long text into sentences for smoother delivery
         sentences = text.replace('!', '.').replace('?', '?|').replace('.', '.|').split('|')
@@ -134,16 +136,26 @@ def speak_text(text):
                         emphasized.append(word)
                 emphasized_text = ' '.join(emphasized)
                 
-                # Use espeak-ng with selected voice settings
-                subprocess.run([
-                    'espeak-ng',
-                    '-v', 'mb-us1',     # MBROLA US English female 1
-                    '-p', '200',        # Higher pitch for teenage voice
-                    '-s', '190',        # Faster speed for natural flow
-                    '-g', '2',          # Minimal word gap
-                    '-a', '100',        # Amplitude
-                    emphasized_text.strip()
-                ])
+                # Use piper with the selected voice
+                home_dir = os.path.expanduser('~')
+                piper_path = '/home/jmunning/piper/piper'  # Use correct absolute path
+                model_path = os.path.join(home_dir, '.local/share/piper/en_US-amy-medium.onnx')
+                
+                # Create a temporary WAV file
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+                    # Generate speech to WAV file
+                    process = subprocess.Popen([piper_path, 
+                                             '--model', model_path,
+                                             '--output_file', temp_wav.name], 
+                                            stdin=subprocess.PIPE)
+                    process.communicate(emphasized_text.strip().encode())
+                    
+                    # Play the WAV file using aplay
+                    subprocess.run(['aplay', temp_wav.name])
+                    
+                    # Clean up
+                    os.unlink(temp_wav.name)
+                
                 time.sleep(0.05)  # Smaller pause between sentences
     except Exception as e:
         print(f"Error during text-to-speech: {e}")
