@@ -1,16 +1,25 @@
 pcm.!default {
-    type asym
-    playback.pcm {
-        type plug
-        slave.pcm "hw:0,0"
-    }
-    capture.pcm {
-        type plug
-        slave.pcm "hw:0,0"
-    }
+    type plug
+    slave.pcm "plughw:1,0"
 }
 
 ctl.!default {
     type hw
-    card 0
+    card 1
+}
+
+# USB microphone specific configuration
+pcm.usb {
+    type plug
+    slave {
+        pcm "hw:1,0"
+        format S16_LE
+        rate 16000
+        channels 1
+    }
+}
+
+ctl.usb {
+    type hw
+    card 1
 } 

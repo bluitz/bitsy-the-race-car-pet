@@ -25,19 +25,15 @@ print("\nAvailable microphones:")
 for index, name in enumerate(sr.Microphone.list_microphone_names()):
     print(f"Microphone {index}: {name}")
 
-# Try to use the default microphone
+# Try to use the USB microphone (usually index 1 for USB audio)
 try:
-    mic = sr.Microphone()
-    print(f"\nUsing default microphone")
+    # Configure for 44100Hz sample rate
+    mic = sr.Microphone(device_index=1, sample_rate=44100)
+    print(f"\nUsing USB microphone")
 except Exception as e:
-    print(f"\nError with default microphone: {e}")
-    # Try to use the first available microphone
-    try:
-        mic = sr.Microphone(device_index=0)
-        print(f"Falling back to first available microphone")
-    except Exception as e:
-        print(f"Error accessing any microphone: {e}")
-        sys.exit(1)
+    print(f"\nError with USB microphone: {e}")
+    print("Please make sure your USB microphone is properly connected")
+    sys.exit(1)
 
 messages = [
     {
@@ -55,7 +51,8 @@ def get_voice_input():
             audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
             print("Processing speech...")
             try:
-                text = recognizer.recognize_google(audio)
+                # Using a more lenient recognition setting
+                text = recognizer.recognize_google(audio, language="en-US")
                 print("You said:", text)
                 return text
             except sr.UnknownValueError:
