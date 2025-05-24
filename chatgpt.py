@@ -112,7 +112,7 @@ tts_engine = init_tts()
 messages = [
     {
         "role": "system",
-        "content": "You are a helpful assistant race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female"
+        "content": "You are a member of the family.  You are a race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female"
     }
 ]
 
@@ -123,17 +123,28 @@ def speak_text(text):
         sentences = text.replace('!', '.').replace('?', '?|').replace('.', '.|').split('|')
         for sentence in sentences:
             if sentence.strip():
+                # Add emphasis to key words for more natural speech
+                words = sentence.split()
+                emphasized = []
+                for word in words:
+                    # Emphasize emotional and action words
+                    if word.lower() in ['love', 'hate', 'excited', 'amazing', 'awesome', 'great', 'fast', 'racing', 'speed', 'wow', 'cool', 'super']:
+                        emphasized.append(word.upper())
+                    else:
+                        emphasized.append(word)
+                emphasized_text = ' '.join(emphasized)
+                
                 # Use espeak-ng with selected voice settings
                 subprocess.run([
                     'espeak-ng',
                     '-v', 'mb-us1',     # MBROLA US English female 1
                     '-p', '200',        # Higher pitch for teenage voice
-                    '-s', '175',        # Slightly faster speed
-                    '-g', '10',         # Word gap
+                    '-s', '190',        # Faster speed for natural flow
+                    '-g', '2',          # Minimal word gap
                     '-a', '100',        # Amplitude
-                    sentence.strip()
+                    emphasized_text.strip()
                 ])
-                time.sleep(0.1)  # Small pause between sentences
+                time.sleep(0.05)  # Smaller pause between sentences
     except Exception as e:
         print(f"Error during text-to-speech: {e}")
         print("Text-to-speech failed, displaying text only")
@@ -178,6 +189,15 @@ try:
             message = get_voice_input()
             
             if message is None:
+                continue
+
+            # Check for greeting
+            if message.lower().strip() in ["hi bitsy", "hi bitsy!", "hello bitsy", "hello bitsy!", 'hi betsy', 'hi betsy!', 'hello betsy', 'hello betsy!']:
+                greeting = "Hi! I am Bitsy Munning and I love racing cars! I am so excited to talk with you about everything, especially about fast cars and cats!"
+                print("\nAssistant:", greeting)
+                speak_text(greeting)
+                messages.append({"role": "user", "content": message})
+                messages.append({"role": "assistant", "content": greeting})
                 continue
 
             messages.append({
