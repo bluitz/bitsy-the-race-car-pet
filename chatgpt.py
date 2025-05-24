@@ -7,6 +7,8 @@ import time
 import ctypes
 from contextlib import contextmanager
 import io
+import pyttsx3
+import subprocess
 
 # Disable JACK to prevent error messages
 os.environ['JACK_NO_START_SERVER'] = '1'
@@ -39,6 +41,26 @@ def suppress_stderr():
         sys.stderr.close()
         sys.stderr = stderr
 
+# Initialize text-to-speech engine
+def init_tts():
+    try:
+        engine = pyttsx3.init()
+        # Configure voice properties
+        engine.setProperty('rate', 150)    # Speaking rate
+        engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+        
+        # Try to set a female voice if available
+        voices = engine.getProperty('voices')
+        for voice in voices:
+            if "female" in voice.name.lower():
+                engine.setProperty('voice', voice.id)
+                break
+        
+        return engine
+    except Exception as e:
+        print(f"Warning: Could not initialize text-to-speech: {e}")
+        return None
+
 # Initialize OpenAI client
 try:
     client = OpenAI(
@@ -67,12 +89,30 @@ with suppress_stderr(), noalsaerr():
         print("Please make sure your USB microphone is properly connected")
         sys.exit(1)
 
+# Initialize text-to-speech
+tts_engine = init_tts()
+
 messages = [
     {
         "role": "system",
         "content": "You are a helpful assistant race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female"
     }
 ]
+
+def speak_text(text):
+    """Speak the given text using text-to-speech"""
+    if tts_engine:
+        try:
+            tts_engine.say(text)
+            tts_engine.runAndWait()
+        except Exception as e:
+            print(f"Error during text-to-speech: {e}")
+            # Fallback to espeak if pyttsx3 fails
+            try:
+                subprocess.run(['espeak', text], check=True)
+            except Exception as e2:
+                print(f"Error with fallback speech: {e2}")
+                print("Text-to-speech failed, displaying text only")
 
 def get_voice_input():
     with suppress_stderr(), noalsaerr():
@@ -104,6 +144,9 @@ def get_voice_input():
 print("\nVoice Chat started! Press Ctrl+C to exit.")
 print("Wait for 'Listening...' prompt, then speak your message.")
 
+# Test the text-to-speech
+speak_text("Hello! I'm Bitsy Munning, and I'm ready to chat!")
+
 try:
     while True:
         try:
@@ -126,6 +169,9 @@ try:
             reply = chat.choices[0].message
             print("\nAssistant:", reply.content)
             messages.append(reply)
+            
+            # Speak the response
+            speak_text(reply.content)
 
             # Small pause before next listening session
             time.sleep(1)
@@ -137,4 +183,6 @@ try:
 
 except KeyboardInterrupt:
     print("\nGoodbye!")
+    if tts_engine:
+        speak_text("Goodbye! Have a great day!")
     sys.exit(0)
