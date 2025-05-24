@@ -46,15 +46,32 @@ def init_tts():
     try:
         engine = pyttsx3.init()
         # Configure voice properties
-        engine.setProperty('rate', 150)    # Speaking rate
-        engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
+        engine.setProperty('rate', 175)     # Slightly faster speaking rate
+        engine.setProperty('volume', 0.9)   # Volume (0.0 to 1.0)
         
-        # Try to set a female voice if available
+        # List all available voices
         voices = engine.getProperty('voices')
+        print("\nAvailable voices:")
+        for idx, voice in enumerate(voices):
+            print(f"Voice {idx}: {voice.name} ({voice.id})")
+            print(f"  - Gender: {voice.gender if hasattr(voice, 'gender') else 'Unknown'}")
+            print(f"  - Age: {voice.age if hasattr(voice, 'age') else 'Unknown'}")
+            print(f"  - Languages: {voice.languages if hasattr(voice, 'languages') else 'Unknown'}")
+        
+        # Try to find a young female voice
+        selected_voice = None
         for voice in voices:
-            if "female" in voice.name.lower():
-                engine.setProperty('voice', voice.id)
+            # Look for keywords suggesting a young female voice
+            name_lower = voice.name.lower()
+            if any(word in name_lower for word in ['female', 'girl', 'woman', 'young']):
+                selected_voice = voice
                 break
+        
+        if selected_voice:
+            print(f"\nSelected voice: {selected_voice.name}")
+            engine.setProperty('voice', selected_voice.id)
+        else:
+            print("\nNo specific young female voice found, using default voice")
         
         return engine
     except Exception as e:
@@ -101,18 +118,25 @@ messages = [
 
 def speak_text(text):
     """Speak the given text using text-to-speech"""
-    if tts_engine:
-        try:
-            tts_engine.say(text)
-            tts_engine.runAndWait()
-        except Exception as e:
-            print(f"Error during text-to-speech: {e}")
-            # Fallback to espeak if pyttsx3 fails
-            try:
-                subprocess.run(['espeak', text], check=True)
-            except Exception as e2:
-                print(f"Error with fallback speech: {e2}")
-                print("Text-to-speech failed, displaying text only")
+    try:
+        # Split long text into sentences for smoother delivery
+        sentences = text.replace('!', '.').replace('?', '?|').replace('.', '.|').split('|')
+        for sentence in sentences:
+            if sentence.strip():
+                # Use espeak-ng with selected voice settings
+                subprocess.run([
+                    'espeak-ng',
+                    '-v', 'mb-us1',     # MBROLA US English female 1
+                    '-p', '200',        # Higher pitch for teenage voice
+                    '-s', '175',        # Slightly faster speed
+                    '-g', '10',         # Word gap
+                    '-a', '100',        # Amplitude
+                    sentence.strip()
+                ])
+                time.sleep(0.1)  # Small pause between sentences
+    except Exception as e:
+        print(f"Error during text-to-speech: {e}")
+        print("Text-to-speech failed, displaying text only")
 
 def get_voice_input():
     with suppress_stderr(), noalsaerr():
