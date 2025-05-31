@@ -121,42 +121,37 @@ messages = [
 def speak_text(text):
     """Speak the given text using text-to-speech with Piper"""
     try:
-        # Split long text into sentences for smoother delivery
-        sentences = text.replace('!', '.').replace('?', '?|').replace('.', '.|').split('|')
-        for sentence in sentences:
-            if sentence.strip():
-                # Add emphasis to key words for more natural speech
-                words = sentence.split()
-                emphasized = []
-                for word in words:
-                    # Emphasize emotional and action words
-                    if word.lower() in ['love', 'hate', 'excited', 'amazing', 'awesome', 'great', 'fast', 'racing', 'speed', 'wow', 'cool', 'super']:
-                        emphasized.append(word.upper())
-                    else:
-                        emphasized.append(word)
-                emphasized_text = ' '.join(emphasized)
-                
-                # Use piper with the selected voice
-                home_dir = os.path.expanduser('~')
-                piper_path = '/home/jmunning/piper/piper'  # Use correct absolute path
-                model_path = os.path.join(home_dir, '.local/share/piper/en_US-amy-medium.onnx')
-                
-                # Create a temporary WAV file
-                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
-                    # Generate speech to WAV file
-                    process = subprocess.Popen([piper_path, 
-                                             '--model', model_path,
-                                             '--output_file', temp_wav.name], 
-                                            stdin=subprocess.PIPE)
-                    process.communicate(emphasized_text.strip().encode())
-                    
-                    # Play the WAV file using aplay
-                    subprocess.run(['aplay', temp_wav.name])
-                    
-                    # Clean up
-                    os.unlink(temp_wav.name)
-                
-                time.sleep(0.05)  # Smaller pause between sentences
+        # Add emphasis to key words for more natural speech
+        words = text.split()
+        emphasized = []
+        for word in words:
+            # Emphasize emotional and action words
+            if word.lower() in ['love', 'hate', 'excited', 'amazing', 'awesome', 'great', 'fast', 'racing', 'speed', 'wow', 'cool', 'super']:
+                emphasized.append(word.upper())
+            else:
+                emphasized.append(word)
+        emphasized_text = ' '.join(emphasized)
+        
+        # Use piper with the selected voice
+        home_dir = os.path.expanduser('~')
+        piper_path = '/home/jmunning/piper/piper'  # Use correct absolute path
+        model_path = os.path.join(home_dir, '.local/share/piper/en_US-amy-low.onnx')
+        
+        # Create a temporary WAV file for the entire text
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+            # Generate speech to WAV file
+            process = subprocess.Popen([piper_path, 
+                                     '--model', model_path,
+                                     '--output_file', temp_wav.name], 
+                                    stdin=subprocess.PIPE)
+            process.communicate(emphasized_text.strip().encode())
+            
+            # Play the complete WAV file using aplay
+            subprocess.run(['aplay', temp_wav.name])
+            
+            # Clean up
+            os.unlink(temp_wav.name)
+            
     except Exception as e:
         print(f"Error during text-to-speech: {e}")
         print("Text-to-speech failed, displaying text only")
