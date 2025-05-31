@@ -1,0 +1,47 @@
+devLog.txt
+
+# Check if service is running
+sudo systemctl status jerry-in-a-box
+
+# View real-time logs
+sudo journalctl -u jerry-in-a-box -f
+
+# View startup logs
+tail -f jerry_startup.log
+
+# Manually start/stop the service
+sudo systemctl start jerry-in-a-box
+sudo systemctl stop jerry-in-a-box
+
+🎯 Next steps:
+   1. Reboot your Raspberry Pi: sudo reboot
+   2. Check service status: sudo systemctl status jerry-in-a-box
+   3. View logs: tail -f jerry_startup.log
+
+🛠️  Useful commands:
+   • Start service: sudo systemctl start jerry-in-a-box
+   • Stop service: sudo systemctl stop jerry-in-a-box
+   • Disable auto-start: sudo systemctl disable jerry-in-a-box
+   • View service logs: sudo journalctl -u jerry-in-a-box -f
+
+📝 Log files will be created:
+   • jerry_startup.log - Startup process logs
+   • jerry_service.log - Service runtime logs
+venv☁  jerry-in-a-box [main] ⚡    
+
+✅ Auto-start setup complete!
+
+🎯 Next steps:
+   1. Reboot your Raspberry Pi: sudo reboot
+   2. Check service status: sudo systemctl status bitsy
+   3. View logs: tail -f bitsy.log
+
+🛠️  Useful commands:
+   • Start service: sudo systemctl start bitsy
+   • Stop service: sudo systemctl stop bitsy
+   • Disable auto-start: sudo systemctl disable bitsy
+   • View service logs: sudo journalctl -u bitsy -f
+
+📝 Log files will be created:
+   • bitsy.log - Startup process logs
+   • bitsy.log - Service runtime logs
