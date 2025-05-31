@@ -9,12 +9,10 @@ from contextlib import contextmanager
 import io
 import pyttsx3
 import subprocess
-import tempfile
 
 # Disable JACK to prevent error messages
 os.environ['JACK_NO_START_SERVER'] = '1'
 os.environ['JACK_NO_AUDIO_RESERVATION'] = '1'
-os.environ['AUDIODEV'] = 'hw:0,0'  # Use the first ALSA device
 
 # Load environment variables
 load_dotenv()
@@ -48,32 +46,15 @@ def init_tts():
     try:
         engine = pyttsx3.init()
         # Configure voice properties
-        engine.setProperty('rate', 175)     # Slightly faster speaking rate
-        engine.setProperty('volume', 0.9)   # Volume (0.0 to 1.0)
+        engine.setProperty('rate', 150)    # Speaking rate
+        engine.setProperty('volume', 0.9)  # Volume (0.0 to 1.0)
         
-        # List all available voices
+        # Try to set a female voice if available
         voices = engine.getProperty('voices')
-        print("\nAvailable voices:")
-        for idx, voice in enumerate(voices):
-            print(f"Voice {idx}: {voice.name} ({voice.id})")
-            print(f"  - Gender: {voice.gender if hasattr(voice, 'gender') else 'Unknown'}")
-            print(f"  - Age: {voice.age if hasattr(voice, 'age') else 'Unknown'}")
-            print(f"  - Languages: {voice.languages if hasattr(voice, 'languages') else 'Unknown'}")
-        
-        # Try to find a young female voice
-        selected_voice = None
         for voice in voices:
-            # Look for keywords suggesting a young female voice
-            name_lower = voice.name.lower()
-            if any(word in name_lower for word in ['female', 'girl', 'woman', 'young']):
-                selected_voice = voice
+            if "female" in voice.name.lower():
+                engine.setProperty('voice', voice.id)
                 break
-        
-        if selected_voice:
-            print(f"\nSelected voice: {selected_voice.name}")
-            engine.setProperty('voice', selected_voice.id)
-        else:
-            print("\nNo specific young female voice found, using default voice")
         
         return engine
     except Exception as e:
@@ -114,47 +95,24 @@ tts_engine = init_tts()
 messages = [
     {
         "role": "system",
-        "content": "You are a member of the family.  You are a race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female"
+        "content": "You are a helpful assistant race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female"
     }
 ]
 
 def speak_text(text):
-    """Speak the given text using text-to-speech with Piper"""
-    try:
-        # Add emphasis to key words for more natural speech
-        words = text.split()
-        emphasized = []
-        for word in words:
-            # Emphasize emotional and action words
-            if word.lower() in ['love', 'hate', 'excited', 'amazing', 'awesome', 'great', 'fast', 'racing', 'speed', 'wow', 'cool', 'super']:
-                emphasized.append(word.upper())
-            else:
-                emphasized.append(word)
-        emphasized_text = ' '.join(emphasized)
-        
-        # Use piper with the selected voice
-        home_dir = os.path.expanduser('~')
-        piper_path = '/home/jmunning/piper/piper'  # Use correct absolute path
-        model_path = os.path.join(home_dir, '.local/share/piper/en_US-amy-low.onnx')
-        
-        # Create a temporary WAV file for the entire text
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
-            # Generate speech to WAV file
-            process = subprocess.Popen([piper_path, 
-                                     '--model', model_path,
-                                     '--output_file', temp_wav.name], 
-                                    stdin=subprocess.PIPE)
-            process.communicate(emphasized_text.strip().encode())
-            
-            # Play the complete WAV file using aplay
-            subprocess.run(['aplay', temp_wav.name])
-            
-            # Clean up
-            os.unlink(temp_wav.name)
-            
-    except Exception as e:
-        print(f"Error during text-to-speech: {e}")
-        print("Text-to-speech failed, displaying text only")
+    """Speak the given text using text-to-speech"""
+    if tts_engine:
+        try:
+            tts_engine.say(text)
+            tts_engine.runAndWait()
+        except Exception as e:
+            print(f"Error during text-to-speech: {e}")
+            # Fallback to espeak if pyttsx3 fails
+            try:
+                subprocess.run(['espeak', text], check=True)
+            except Exception as e2:
+                print(f"Error with fallback speech: {e2}")
+                print("Text-to-speech failed, displaying text only")
 
 def get_voice_input():
     with suppress_stderr(), noalsaerr():
@@ -196,15 +154,6 @@ try:
             message = get_voice_input()
             
             if message is None:
-                continue
-
-            # Check for greeting
-            if message.lower().strip() in ["hi bitsy", "hi bitsy!", "hello bitsy", "hello bitsy!", 'hi betsy', 'hi betsy!', 'hello betsy', 'hello betsy!']:
-                greeting = "Hi! I am Bitsy Munning and I love racing cars! I am so excited to talk with you about everything, especially about fast cars and cats!"
-                print("\nAssistant:", greeting)
-                speak_text(greeting)
-                messages.append({"role": "user", "content": message})
-                messages.append({"role": "assistant", "content": greeting})
                 continue
 
             messages.append({
