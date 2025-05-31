@@ -92,6 +92,69 @@ class CarMovementManager:
         time.sleep(duration)
         self.stop()
         
+    def show_off_routine(self, led_manager):
+        """Perform an epic show off routine with LED effects"""
+        print("🎭 Starting SHOW OFF routine!")
+        self.is_moving = True
+        
+        # Step 1: Forward 1.5 seconds
+        led_manager.set_driving_state('forward')
+        print("🚗 Show Off Step 1: Moving FORWARD")
+        self.motor.set_motor_model(2000, 2000, 2000, 2000)
+        time.sleep(1.5)
+        
+        # Step 2: Backward 1.5 seconds  
+        led_manager.set_driving_state('backward')
+        print("🚗 Show Off Step 2: Moving BACKWARD")
+        self.motor.set_motor_model(-2000, -2000, -2000, -2000)
+        time.sleep(1.5)
+        
+        # Step 3: Turn left
+        led_manager.set_driving_state('left')
+        print("🚗 Show Off Step 3: Turning LEFT")
+        self.motor.set_motor_model(-2000, -2000, 2000, 2000)
+        time.sleep(0.8)
+        
+        # Step 4: Forward 1.5 seconds
+        led_manager.set_driving_state('forward')
+        print("🚗 Show Off Step 4: Moving FORWARD")
+        self.motor.set_motor_model(2000, 2000, 2000, 2000)
+        time.sleep(1.5)
+        
+        # Step 5: Backward 1.5 seconds
+        led_manager.set_driving_state('backward')
+        print("🚗 Show Off Step 5: Moving BACKWARD")
+        self.motor.set_motor_model(-2000, -2000, -2000, -2000)
+        time.sleep(1.5)
+        
+        # Step 6: Turn right
+        led_manager.set_driving_state('right')
+        print("🚗 Show Off Step 6: Turning RIGHT")
+        self.motor.set_motor_model(2000, 2000, -2000, -2000)
+        time.sleep(0.8)
+        
+        # Step 7: Forward 1.5 seconds
+        led_manager.set_driving_state('forward')
+        print("🚗 Show Off Step 7: Moving FORWARD")
+        self.motor.set_motor_model(2000, 2000, 2000, 2000)
+        time.sleep(1.5)
+        
+        # Step 8: Backward 1.5 seconds
+        led_manager.set_driving_state('backward')
+        print("🚗 Show Off Step 8: Moving BACKWARD")
+        self.motor.set_motor_model(-2000, -2000, -2000, -2000)
+        time.sleep(1.5)
+        
+        # Step 9: Final epic left turn for 20 seconds!
+        led_manager.set_driving_state('left')
+        print("🚗 Show Off Step 9: EPIC LEFT TURN for 20 seconds!")
+        self.motor.set_motor_model(-1500, -1500, 1500, 1500)  # Slightly slower for the long turn
+        time.sleep(20)
+        
+        # Final stop
+        self.stop()
+        print("🎭 Show Off routine COMPLETE!")
+        
     def stop(self):
         """Stop car movement"""
         print("🚗 STOPPING")
@@ -160,6 +223,16 @@ class LEDStatusManager:
         self.led_thread.start()
         print(f"🚗 LEDs: DRIVING {direction.upper()}")
     
+    def set_show_off_state(self):
+        """Special rainbow animation for show off mode"""
+        self.stop_current_animation()
+        self.current_state = "show_off"
+        self.led_running = True
+        self.led_thread = threading.Thread(target=self._show_off_animation)
+        self.led_thread.daemon = True
+        self.led_thread.start()
+        print("🎭 LEDs: SHOW OFF MODE (party lights!)")
+    
     def _blink_speaking(self):
         """Blink blue while speaking"""
         blink_state = True
@@ -179,6 +252,28 @@ class LEDStatusManager:
             if self.led.is_support_led_function:
                 self.led.rainbowCycle(50)
             time.sleep(0.05)
+    
+    def _show_off_animation(self):
+        """Special party animation for show off mode"""
+        colors = [
+            (255, 0, 0),    # Red
+            (255, 165, 0),  # Orange  
+            (255, 255, 0),  # Yellow
+            (0, 255, 0),    # Green
+            (0, 255, 255),  # Cyan
+            (0, 0, 255),    # Blue
+            (255, 0, 255),  # Magenta
+            (255, 255, 255) # White
+        ]
+        color_index = 0
+        
+        while self.led_running and self.current_state == "show_off":
+            if self.led.is_support_led_function:
+                color = colors[color_index % len(colors)]
+                self.led.strip.set_all_led_color(*color)
+                self.led.strip.show()
+            color_index += 1
+            time.sleep(0.1)  # Fast color changes for party effect
     
     def _driving_animation(self, direction):
         """LED animations for different driving directions"""
@@ -273,7 +368,7 @@ def is_greeting_for_bitsy(message):
 # Movement command recognition
 def is_movement_command(message):
     """
-    Check if the message is a movement command
+    Check if the message is a movement command - Enhanced for better recognition
     """
     if not message:
         return None
@@ -282,36 +377,150 @@ def is_movement_command(message):
     cleaned = message.lower().strip()
     cleaned = re.sub(r'[^\w\s]', '', cleaned)  # Remove punctuation
     
-    # Movement command patterns
+    # Enhanced movement command patterns with more variations
     movement_patterns = {
-        'forward': ['go forward', 'move forward', 'forward', 'drive forward', 'ahead', 'go ahead', 'move ahead'],
-        'backward': ['go backward', 'move backward', 'backward', 'back up', 'reverse', 'go back', 'move back'],
-        'left': ['turn left', 'go left', 'left', 'turn to the left'],
-        'right': ['turn right', 'go right', 'right', 'turn to the right'],
-        'stop': ['stop', 'halt', 'brake', 'freeze', 'stay', 'wait']
+        'forward': [
+            'go forward', 'move forward', 'forward', 'drive forward', 'ahead', 'go ahead', 'move ahead',
+            'go', 'drive', 'move', 'straight', 'go straight', 'move straight', 'drive straight',
+            'up', 'go up', 'move up', 'forwards', 'advance', 'proceed'
+        ],
+        'backward': [
+            'go backward', 'move backward', 'backward', 'back up', 'reverse', 'go back', 'move back',
+            'backwards', 'back', 'retreat', 'go backwards', 'move backwards', 'drive backwards',
+            'reverse gear', 'backup', 'down', 'go down', 'move down'
+        ],
+        'left': [
+            'turn left', 'go left', 'left', 'turn to the left', 'left turn', 'make a left',
+            'turn around left', 'pivot left', 'rotate left', 'spin left', 'hang a left'
+        ],
+        'right': [
+            'turn right', 'go right', 'right', 'turn to the right', 'right turn', 'make a right',
+            'turn around right', 'pivot right', 'rotate right', 'spin right', 'hang a right'
+        ],
+        'stop': [
+            'stop', 'halt', 'brake', 'freeze', 'stay', 'wait', 'pause', 'hold', 'stand still',
+            'stop moving', 'dont move', 'stay put', 'hold up', 'hold on'
+        ],
+        'show_off': [
+            'show off', 'showoff', 'show me your moves', 'do a dance', 'perform', 'do tricks', 
+            'impress me', 'do something cool', 'show your stuff', 'demonstrate', 'perform tricks',
+            'show me what you got', 'dance', 'trick', 'routine', 'performance'
+        ]
     }
     
-    # Check for exact matches
+    # First check for exact phrase matches
     for direction, patterns in movement_patterns.items():
         for pattern in patterns:
             if pattern in cleaned:
                 return direction
     
-    # Check for partial matches with key words
+    # Enhanced word-by-word matching with context awareness
     words = cleaned.split()
-    for word in words:
-        if word in ['forward', 'ahead']:
+    
+    # Special handling for single-word commands
+    if len(words) == 1:
+        word = words[0]
+        # Single word commands - be more generous
+        if word in ['go', 'move', 'drive', 'forward', 'forwards', 'ahead', 'straight', 'up']:
             return 'forward'
-        elif word in ['backward', 'back', 'reverse']:
+        elif word in ['back', 'backward', 'backwards', 'reverse', 'retreat', 'down']:
+            return 'backward'
+        elif word in ['left']:
+            return 'left'
+        elif word in ['right']:
+            return 'right'
+        elif word in ['stop', 'halt', 'freeze', 'brake', 'pause', 'wait']:
+            return 'stop'
+        elif word in ['showoff', 'perform', 'dance', 'trick', 'routine']:
+            return 'show_off'
+    
+    # Multi-word analysis with better context
+    for i, word in enumerate(words):
+        # Look for direction words with context
+        if word in ['forward', 'forwards', 'ahead', 'straight']:
+            return 'forward'
+        elif word in ['backward', 'backwards', 'reverse']:
             return 'backward'
         elif word == 'left':
             return 'left'
         elif word == 'right':
             return 'right'
-        elif word in ['stop', 'halt', 'brake']:
+        elif word in ['stop', 'halt', 'freeze', 'brake']:
             return 'stop'
+        elif word == 'go':
+            # Check what follows "go"
+            if i + 1 < len(words):
+                next_word = words[i + 1]
+                if next_word in ['forward', 'forwards', 'ahead', 'straight', 'up']:
+                    return 'forward'
+                elif next_word in ['backward', 'backwards', 'back', 'reverse', 'down']:
+                    return 'backward'
+                elif next_word == 'left':
+                    return 'left'
+                elif next_word == 'right':
+                    return 'right'
+            else:
+                # Just "go" by itself means forward
+                return 'forward'
+        elif word in ['move', 'drive']:
+            # Check what follows
+            if i + 1 < len(words):
+                next_word = words[i + 1]
+                if next_word in ['forward', 'forwards', 'ahead', 'straight', 'up']:
+                    return 'forward'
+                elif next_word in ['backward', 'backwards', 'back', 'reverse', 'down']:
+                    return 'backward'
+                elif next_word == 'left':
+                    return 'left'
+                elif next_word == 'right':
+                    return 'right'
+            else:
+                # Just "move" or "drive" means forward
+                return 'forward'
+        elif word in ['turn']:
+            # Check direction after turn
+            if i + 1 < len(words):
+                next_word = words[i + 1]
+                if next_word == 'left':
+                    return 'left'
+                elif next_word == 'right':
+                    return 'right'
+    
+    # Fuzzy matching for commonly misheard words
+    for word in words:
+        if len(word) >= 3:
+            # Check for similar sounding words
+            if word in ['fort', 'ford', 'four', 'for', 'ward', 'word']:
+                # Might be "forward"
+                return 'forward'
+            elif word in ['beck', 'back', 'bak', 'pack']:
+                # Might be "back"
+                return 'backward'
+            elif word in ['leff', 'lefy', 'left']:
+                return 'left'
+            elif word in ['rite', 'wright', 'write']:
+                return 'right'
     
     return None
+
+# Kid-friendly jokes for after show off mode
+def get_random_joke():
+    """Get a random kid-friendly joke about cars or cats"""
+    jokes = [
+        "Why don't race cars ever get tired? Because they always have spare wheels! Get it? Spare wheels! Vroom vroom!",
+        "What do you call a cat that can drive a race car? A purr-fessional driver! Meow!",
+        "Why did the race car go to the doctor? Because it had a bad case of the vrooom-oom-ooms! Hehe!",
+        "What do you call a cat who loves fast cars? A speed-kitten! Zoom zoom meow!",
+        "Why don't cars ever get cold? Because they have heaters! And also because they're always moving fast to stay warm!",
+        "What did the cat say when it saw a race car? That's paws-itively amazing! I want to go that fast!",
+        "Why do race cars make the best friends? Because they're always there when you need a fast getaway! Vroom!",
+        "What do you call a cat driving a tiny race car? Adorable! And also probably illegal because cats can't have driver's licenses!",
+        "Why did the race car break up with the bicycle? Because it was tired of going so slow! The bicycle said 'but I have two wheels!' and the car said 'I have four!'",
+        "What's a cat's favorite type of car? A Catillac! Get it? Like Cadillac but with cat! Meow vroom!"
+    ]
+    
+    import random
+    return random.choice(jokes)
 
 # Initialize text-to-speech engine
 def init_tts():
@@ -436,12 +645,13 @@ print("\nVoice Chat + Driving started! Press Ctrl+C to exit.")
 print("Wait for 'Listening...' prompt, then speak your message.")
 print("\nBitsy will respond to many name variations like:")
 print("Bitsy, Betsy, Bets, Bits, Pits, Pitsy, Butsy, Busy, Bizzy, and more!")
-print("\nMovement Commands:")
-print("🚗 'Go forward' or 'Move forward'")
-print("🚗 'Go backward' or 'Move backward'") 
-print("🚗 'Turn left'")
-print("🚗 'Turn right'")
-print("🚗 'Stop'")
+print("\nMovement Commands (Much Improved!):")
+print("🚗 'Go' or 'Forward' or 'Move' or 'Drive'")
+print("🚗 'Back' or 'Backward' or 'Reverse'") 
+print("🚗 'Left'")
+print("🚗 'Right'")
+print("🚗 'Stop' or 'Halt'")
+print("🎭 'Show off' - Epic choreographed routine!")
 print("\nLED Status Indicators:")
 print("🟢 Solid Green = Listening")
 print("🔵 Blinking Blue = Speaking")
@@ -451,10 +661,11 @@ print("🚗 White Blink = Moving Forward")
 print("🚗 Magenta Blink = Moving Backward")
 print("🚗 Yellow Blink = Turning Left")
 print("🚗 Cyan Blink = Turning Right")
+print("🎭 Party Colors = Show Off Mode!")
 
 # Test startup with LED greeting
 led_status.set_greeting_state()
-speak_text("Hello! I'm Bitsy Munning, your racing car friend! I'm ready to chat and drive around! Tell me to go forward, backward, turn left, or turn right!")
+speak_text("Hello! I'm Bitsy Munning, your racing car friend! I'm ready to chat and drive around! Just say 'go', 'back', 'left', 'right', or 'show off'!")
 
 try:
     while True:
@@ -492,10 +703,21 @@ try:
                     speak_text("Stopping! All done moving!")
                     car_movement.stop()
                     time.sleep(0.5)
+                elif movement_command == 'show_off':
+                    led_status.set_show_off_state()
+                    speak_text("Ooh! Time to show off! Watch this amazing routine! Here I go!")
+                    car_movement.show_off_routine(led_status)
+                    
+                    # Tell a joke after the routine
+                    joke = get_random_joke()
+                    speak_text(f"Ta-da! How was that? Here's a joke for you: {joke}")
                 
                 # Add to conversation history
                 messages.append({"role": "user", "content": message})
-                messages.append({"role": "assistant", "content": f"I just {movement_command}! That was fun!"})
+                if movement_command == 'show_off':
+                    messages.append({"role": "assistant", "content": f"I just did my amazing show off routine! That was so much fun! I went forward, backward, turned left, went forward and back again, turned right, went forward and back one more time, and then did a super long left turn! I love showing off my moves!"})
+                else:
+                    messages.append({"role": "assistant", "content": f"I just {movement_command}! That was fun!"})
                 continue
 
             # Check for greeting using enhanced name recognition

@@ -1,0 +1,21 @@
+[Unit]
+Description=Bitsy Voice Controlled Racing Car
+After=network-online.target sound.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+User=jmunning
+Group=jmunning
+WorkingDirectory=/home/jmunning
+Environment=HOME=/home/jmunning
+Environment=PATH=/home/jmunning/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/jmunning/venv/bin/python3 /home/jmunning/chatgpt_with_driving.py
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target 
