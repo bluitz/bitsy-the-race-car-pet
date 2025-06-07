@@ -625,7 +625,21 @@ print("🎭 Party Colors = Show Off Mode!")
 
 # Test startup with LED greeting
 led_status.set_greeting_state()
-speak_text("Hello! I'm Bitsy Munning, I'm Indigo Munning's race car pet! I'm ready to party! Just say 'go', 'back', 'left', 'right', or 'show off'!")
+speak_text("Hello! I'm Bitsy Munning, I'm Indigo Munning's race car pet! I'm ready to race! Just say 'go', 'back', 'left', 'right', or 'show off'!")
+
+def get_special_response(message):
+    """
+    Returns a tuple (response_text, use_openai) if the message matches a special question.
+    Otherwise returns (None, False).
+    """
+    cleaned = message.lower().strip()
+    if "who is your family" in cleaned or "who's your family" in cleaned:
+        return ("", True)
+    elif "are you a pet" in cleaned:
+        return ("", True)
+    elif "tell me a joke" in cleaned or "joke" in cleaned:
+        return ("", True)
+    return (None, False)
 
 try:
     while True:
@@ -639,7 +653,26 @@ try:
             # Set processing state while thinking
             led_status.set_processing_state()
 
-            # Check for movement commands first
+            # Check for special descriptive questions first
+            special_response, use_openai = get_special_response(message)
+            if use_openai:
+                try:
+                    completion = openai.ChatCompletion.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are Bitsy Munning, a helpful, friendly, and playful race car pet for a 5-year-old boy named Indigo. Your family includes  Satyana (sister), and Indigo (boy), Midnight (cat), Disco (cat), Justin (Dad), Erin (Mom). You love cats, cars, racing, and telling kid-friendly jokes about cars and cats. Respond in a fun and descriptive way suitable for a young child."},
+                            {"role": "user", "content": message}
+                        ],
+                        max_tokens=100,
+                        temperature=0.7,
+                    )
+                    response_text = completion.choices[0].message['content'].strip()
+                    speak_text(response_text)
+                except Exception as e:
+                    speak_text("Sorry, I had trouble thinking of an answer!")
+                continue
+
+            # Check for movement commands next
             movement_command = is_movement_command(message)
             if movement_command:
                 if movement_command == 'forward':
@@ -683,7 +716,7 @@ try:
             # Check for greeting using enhanced name recognition
             if is_greeting_for_bitsy(message):
                 led_status.set_greeting_state()  # Rainbow for greetings
-                greeting = "Hi! I am Bitsy Munning and I love racing cars! I am so excited to talk with you about everything, especially about fast cars and cats! You can also tell me to drive around!"
+                greeting = "Hi! I am Bitsy Munning and I love racing cars! I am so excited to talk with you about everything, especially about cats and cars! You can also tell me to drive around!"
                 print("\nAssistant:", greeting)
                 speak_text(greeting)
                 messages.append({"role": "user", "content": message})
