@@ -1,6 +1,7 @@
 [Unit]
 Description=Bitsy - AI Robot Car
-After=network.target sound.target
+After=network.target sound.target pulseaudio.service
+Requires=pulseaudio.service
 Wants=network.target
 
 [Service]
@@ -8,7 +9,11 @@ Type=forking
 User=jmunning
 Group=jmunning
 WorkingDirectory=/home/jmunning
-ExecStart=/home/jmunning/bitsy_start.sh
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+ExecStartPre=/bin/bash -c 'pulseaudio --start --log-target=syslog || true'
+ExecStart=/bin/bash -c 'source /home/pi/venv/bin/activate && python3 /home/pi/chatgpt_with_driving.py'
 PIDFile=/home/jmunning/bitsy.pid
 Restart=always
 RestartSec=10

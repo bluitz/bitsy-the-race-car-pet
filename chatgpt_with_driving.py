@@ -145,11 +145,11 @@ class CarMovementManager:
         self.motor.set_motor_model(-2000, -2000, -2000, -2000)
         time.sleep(1.5)
         
-        # Step 9: Final epic left turn for 20 seconds!
+        # Step 9: Final epic left turn for 5 seconds!
         led_manager.set_driving_state('left')
-        print("🚗 Show Off Step 9: EPIC LEFT TURN for 20 seconds!")
+        print("🚗 Show Off Step 9: EPIC LEFT TURN for 5 seconds!")
         self.motor.set_motor_model(-1500, -1500, 1500, 1500)  # Slightly slower for the long turn
-        time.sleep(20)
+        time.sleep(5)
         
         # Final stop
         self.stop()
