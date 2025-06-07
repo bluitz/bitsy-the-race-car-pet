@@ -365,144 +365,60 @@ def is_greeting_for_bitsy(message):
     
     return False
 
-# Movement command recognition
+import openai
+import os
+
+# If using dotenv for API key management
+from dotenv import load_dotenv
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
+
 def is_movement_command(message):
     """
-    Check if the message is a movement command - Enhanced for better recognition
+    Use OpenAI to classify the user's message as a movement command.
+    Returns one of: 'forward', 'backward', 'left', 'right', 'stop', 'show_off', or None.
     """
-    if not message:
+    if not message or not message.strip():
         return None
-    
-    # Clean up the message
-    cleaned = message.lower().strip()
-    cleaned = re.sub(r'[^\w\s]', '', cleaned)  # Remove punctuation
-    
-    # Enhanced movement command patterns with more variations
-    movement_patterns = {
-        'forward': [
-            'go forward', 'move forward', 'forward', 'drive forward', 'ahead', 'go ahead', 'move ahead',
-            'go', 'drive', 'move', 'straight', 'go straight', 'move straight', 'drive straight',
-            'up', 'go up', 'move up', 'forwards', 'advance', 'proceed'
-        ],
-        'backward': [
-            'go backward', 'move backward', 'backward', 'back up', 'reverse', 'go back', 'move back',
-            'backwards', 'back', 'retreat', 'go backwards', 'move backwards', 'drive backwards',
-            'reverse gear', 'backup', 'down', 'go down', 'move down'
-        ],
-        'left': [
-            'turn left', 'go left', 'left', 'turn to the left', 'left turn', 'make a left',
-            'turn around left', 'pivot left', 'rotate left', 'spin left', 'hang a left'
-        ],
-        'right': [
-            'turn right', 'go right', 'right', 'turn to the right', 'right turn', 'make a right',
-            'turn around right', 'pivot right', 'rotate right', 'spin right', 'hang a right'
-        ],
-        'stop': [
-            'stop', 'halt', 'brake', 'freeze', 'stay', 'wait', 'pause', 'hold', 'stand still',
-            'stop moving', 'dont move', 'stay put', 'hold up', 'hold on'
-        ],
-        'show_off': [
-            'show off', 'showoff', 'show me your moves', 'do a dance', 'perform', 'do tricks', 
-            'impress me', 'do something cool', 'show your stuff', 'demonstrate', 'perform tricks',
-            'show me what you got', 'dance', 'trick', 'routine', 'performance'
-        ]
-    }
-    
-    # First check for exact phrase matches
-    for direction, patterns in movement_patterns.items():
-        for pattern in patterns:
-            if pattern in cleaned:
-                return direction
-    
-    # Enhanced word-by-word matching with context awareness
-    words = cleaned.split()
-    
-    # Special handling for single-word commands
-    if len(words) == 1:
-        word = words[0]
-        # Single word commands - be more generous
-        if word in ['go', 'move', 'drive', 'forward', 'forwards', 'ahead', 'straight', 'up']:
-            return 'forward'
-        elif word in ['back', 'backward', 'backwards', 'reverse', 'retreat', 'down']:
-            return 'backward'
-        elif word in ['left']:
-            return 'left'
-        elif word in ['right']:
-            return 'right'
-        elif word in ['stop', 'halt', 'freeze', 'brake', 'pause', 'wait']:
-            return 'stop'
-        elif word in ['showoff', 'perform', 'dance', 'trick', 'routine']:
-            return 'show_off'
-    
-    # Multi-word analysis with better context
-    for i, word in enumerate(words):
-        # Look for direction words with context
-        if word in ['forward', 'forwards', 'ahead', 'straight']:
-            return 'forward'
-        elif word in ['backward', 'backwards', 'reverse']:
-            return 'backward'
-        elif word == 'left':
-            return 'left'
-        elif word == 'right':
-            return 'right'
-        elif word in ['stop', 'halt', 'freeze', 'brake']:
-            return 'stop'
-        elif word == 'go':
-            # Check what follows "go"
-            if i + 1 < len(words):
-                next_word = words[i + 1]
-                if next_word in ['forward', 'forwards', 'ahead', 'straight', 'up']:
-                    return 'forward'
-                elif next_word in ['backward', 'backwards', 'back', 'reverse', 'down']:
-                    return 'backward'
-                elif next_word == 'left':
-                    return 'left'
-                elif next_word == 'right':
-                    return 'right'
-            else:
-                # Just "go" by itself means forward
-                return 'forward'
-        elif word in ['move', 'drive']:
-            # Check what follows
-            if i + 1 < len(words):
-                next_word = words[i + 1]
-                if next_word in ['forward', 'forwards', 'ahead', 'straight', 'up']:
-                    return 'forward'
-                elif next_word in ['backward', 'backwards', 'back', 'reverse', 'down']:
-                    return 'backward'
-                elif next_word == 'left':
-                    return 'left'
-                elif next_word == 'right':
-                    return 'right'
-            else:
-                # Just "move" or "drive" means forward
-                return 'forward'
-        elif word in ['turn']:
-            # Check direction after turn
-            if i + 1 < len(words):
-                next_word = words[i + 1]
-                if next_word == 'left':
-                    return 'left'
-                elif next_word == 'right':
-                    return 'right'
-    
-    # Fuzzy matching for commonly misheard words
-    for word in words:
-        if len(word) >= 3:
-            # Check for similar sounding words
-            if word in ['fort', 'ford', 'four', 'for', 'ward', 'word']:
-                # Might be "forward"
-                return 'forward'
-            elif word in ['beck', 'back', 'bak', 'pack']:
-                # Might be "back"
-                return 'backward'
-            elif word in ['leff', 'lefy', 'left']:
-                return 'left'
-            elif word in ['rite', 'wright', 'write']:
-                return 'right'
-    
-    return None
 
+    system_prompt = (
+        "You are a robot car voice assistant. "
+        "Classify the following user message as one of these movement commands: "
+        "'forward', 'backward', 'left', 'right', 'stop', 'show_off'. "
+        "If the message does not match any of these, respond with 'none'. "
+        "Only respond with one of: forward, backward, left, right, stop, show_off, none.\n"
+        "Examples:\n"
+        "User: go forward\nAssistant: forward\n"
+        "User: please stop\nAssistant: stop\n"
+        "User: can you show me your moves?\nAssistant: show_off\n"
+        "User: turn left\nAssistant: left\n"
+        "User: drive backwards\nAssistant: backward\n"
+        "User: spin around\nAssistant: show_off\n"
+        "User: what's the weather?\nAssistant: none\n"
+        "User: {message}\nAssistant:"
+    )
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt.format(message=message.strip())},
+            ],
+            max_tokens=1,
+            temperature=0,
+            n=1,
+            stop=["\n"]
+        )
+        result = response.choices[0].message['content'].strip().lower()
+        if result in ['forward', 'backward', 'left', 'right', 'stop', 'show_off']:
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return None
 # Kid-friendly jokes for after show off mode
 def get_random_joke():
     """Get a random kid-friendly joke about cars or cats"""
@@ -628,7 +544,7 @@ tts_engine = init_tts()
 messages = [
     {
         "role": "system",
-        "content": "You are a helpful assistant race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old female. You can now also drive around when asked! You love when people tell you to move forward, backward, turn left, or turn right."
+        "content": "You are a helpful assistant race car who is a pet for 5 year old boy. You love cars and racing and you are a good friend to the boy. You are a good listener and you are always there to help him. You are excited and happy to be alive. You love learning new things and you love it when anyone talks to you. You also really love cats. The people in your family are Justin (Dad 47 years old), Erin (Mom 48 years old), Satyana (female 12 years old), and Indigo (male 5 years old). Your name is Bitsy Munning and you have the personality of an 18 year old boy. You can now also drive around when asked! You love when people tell you to move forward, backward, turn left, or turn right."
     }
 ]
 
@@ -709,7 +625,7 @@ print("🎭 Party Colors = Show Off Mode!")
 
 # Test startup with LED greeting
 led_status.set_greeting_state()
-speak_text("Hello! I'm Bitsy Munning, your racing car friend! I'm ready to chat and drive around! Just say 'go', 'back', 'left', 'right', or 'show off'!")
+speak_text("Hello! I'm Bitsy Munning, I'm Indigo Munning's race car pet! I'm ready to party! Just say 'go', 'back', 'left', 'right', or 'show off'!")
 
 try:
     while True:
