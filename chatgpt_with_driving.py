@@ -563,20 +563,64 @@ with suppress_stderr(), noalsaerr():
     
     # List available microphones
     print("\nAvailable microphones:")
-    for index, name in enumerate(sr.Microphone.list_microphone_names()):
+    microphone_names = sr.Microphone.list_microphone_names()
+    for index, name in enumerate(microphone_names):
         print(f"Microphone {index}: {name}")
 
-    # Try to use the USB microphone (usually index 1 for USB audio)
+    # Auto-detect the best microphone to use
+    mic = None
+    usb_mic_index = None
+    
+    # First, try to find a USB microphone
+    for index, name in enumerate(microphone_names):
+        if "USB" in name.upper() or "PnP" in name.upper():
+            usb_mic_index = index
+            break
+    
+    # Try to initialize microphone
     try:
-        # Configure for 44100Hz sample rate
-        mic = sr.Microphone(device_index=1, sample_rate=44100)
-        print(f"\nUsing USB microphone")
+        if usb_mic_index is not None:
+            print(f"\nTrying USB microphone at index {usb_mic_index}: {microphone_names[usb_mic_index]}")
+            mic = sr.Microphone(device_index=usb_mic_index, sample_rate=44100)
+            print(f"✅ Successfully using USB microphone at index {usb_mic_index}")
+        else:
+            # If no USB mic found, try the first available microphone
+            if len(microphone_names) > 0:
+                print(f"\nNo USB microphone found, using default microphone at index 0: {microphone_names[0]}")
+                mic = sr.Microphone(device_index=0, sample_rate=44100)
+                print(f"✅ Successfully using microphone at index 0")
+            else:
+                raise Exception("No microphones detected!")
+        
+        # Test the microphone
+        with mic as source:
+            print("Testing microphone access...")
+            recognizer.adjust_for_ambient_noise(source, duration=1)
+            print("✅ Microphone test successful!")
+            
     except Exception as e:
-        print(f"\nError with USB microphone: {e}")
-        print("Please make sure your USB microphone is properly connected")
-        led_status.cleanup()
-        car_movement.cleanup()
-        sys.exit(1)
+        print(f"\n❌ Error with microphone setup: {e}")
+        print("Trying fallback microphone configurations...")
+        
+        # Try each available microphone as fallback
+        for fallback_index in range(len(microphone_names)):
+            try:
+                print(f"Trying microphone index {fallback_index}: {microphone_names[fallback_index]}")
+                mic = sr.Microphone(device_index=fallback_index, sample_rate=44100)
+                with mic as source:
+                    recognizer.adjust_for_ambient_noise(source, duration=1)
+                print(f"✅ Fallback successful with microphone index {fallback_index}")
+                break
+            except Exception as fallback_error:
+                print(f"Failed with index {fallback_index}: {fallback_error}")
+                continue
+        
+        if mic is None:
+            print("\n❌ Could not initialize any microphone!")
+            print("Please check your microphone connections and try again.")
+            led_status.cleanup()
+            car_movement.cleanup()
+            sys.exit(1)
 
 # Initialize text-to-speech
 tts_engine = init_tts()

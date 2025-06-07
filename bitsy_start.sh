@@ -1,8 +1,8 @@
 #!/bin/bash
-# Jerry in a Box Auto-Start Script
+# Bitsy Auto-Start Script
 
-# Set working directory to the script location
-cd /home/jmunning/
+# Set working directory to the home directory
+cd /home/jmunning
 
 # Log file for debugging
 LOGFILE="/home/jmunning/bitsy_startup.log"
@@ -30,10 +30,19 @@ if [ ! -e "/dev/i2c-1" ]; then
     exit 1
 fi
 
+# Check if we're in the right directory
+if [ ! -f "chatgpt_with_driving.py" ]; then
+    log "ERROR: chatgpt_with_driving.py not found in current directory: $(pwd)"
+    log "Contents of current directory:"
+    ls -la >> "$LOGFILE"
+    exit 1
+fi
+
 # Activate virtual environment if it exists
 if [ -d "venv" ]; then
     log "Activating virtual environment..."
     source venv/bin/activate
+    log "Virtual environment activated. Python path: $(which python3)"
 else
     log "WARNING: No virtual environment found, using system Python"
 fi
@@ -48,6 +57,16 @@ fi
 log "Setting permissions for hardware access..."
 sudo chmod 666 /dev/i2c-1
 sudo chmod 666 /dev/gpiomem
+
+# Set audio environment variables to suppress JACK errors
+export JACK_NO_START_SERVER=1
+export JACK_NO_AUDIO_RESERVATION=1
+
+# Log system information for debugging
+log "System info - User: $(whoami), Directory: $(pwd)"
+log "Python version: $(python3 --version)"
+log "Available microphones:"
+python3 -c "import speech_recognition as sr; [print(f'Index {i}: {name}') for i, name in enumerate(sr.Microphone.list_microphone_names())]" >> "$LOGFILE" 2>&1
 
 # Run the main script
 log "Starting ChatGPT with driving script..."

@@ -45,3 +45,8 @@ venv☁  jerry-in-a-box [main] ⚡
 📝 Log files will be created:
    • bitsy.log - Startup process logs
    • bitsy.log - Service runtime logs
+
+   ssh -t jmunning@10.0.0.82 "cd ~ && source venv/bin/activate && python3 chatgpt_with_driving.py"
+
+   source ~/venv/bin/activate
+   ~/venv/bin/pip install -r ~/requirements.txt
