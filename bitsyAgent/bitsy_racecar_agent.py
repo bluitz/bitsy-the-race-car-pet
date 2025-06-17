@@ -456,7 +456,7 @@ class BitsyAgent:
             t0 = time.time()
             speech = self.client.audio.speech.create(
                 model="tts-1",
-                voice="alloy",
+                voice="nova",
                 input=text,
             )
             speech.stream_to_file(tmp_path)
