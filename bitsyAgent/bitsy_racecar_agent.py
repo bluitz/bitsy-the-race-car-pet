@@ -94,8 +94,16 @@ logger = logging.getLogger(__name__)
 def _play_mp3(path: str) -> None:
     """Play an mp3 file synchronously via pygame mixer."""
     try:
-        if not mixer.get_init():
-            mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+        # Ensure mixer is completely clean before starting
+        try:
+            if mixer.get_init():
+                mixer.music.stop()
+                mixer.quit()
+                time.sleep(0.1)  # Give time for device release
+        except:
+            pass
+            
+        mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
         mixer.music.load(path)
         mixer.music.play()
         while mixer.music.get_busy():
@@ -103,7 +111,9 @@ def _play_mp3(path: str) -> None:
     finally:
         # Always quit mixer to release ALSA device for microphone
         try:
+            mixer.music.stop()
             mixer.quit()
+            time.sleep(0.2)  # Longer delay to ensure device release
         except Exception:
             pass
 
@@ -467,8 +477,28 @@ class BitsyAgent:
                 logger.debug("Head listening position set")
                 try:
                     logger.debug("Starting recogniser.listen()")
-                    audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
-                    logger.debug("Audio captured successfully")
+                    # Add timeout to prevent hanging on microphone access
+                    import signal
+                    
+                    def timeout_handler(signum, frame):
+                        raise TimeoutError("Microphone listen operation timed out")
+                    
+                    # Set up timeout for microphone operation
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(12)  # 12 second timeout (2 seconds more than listen timeout)
+                    
+                    try:
+                        audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
+                        signal.alarm(0)  # Cancel timeout
+                        logger.debug("Audio captured successfully")
+                    except TimeoutError:
+                        signal.alarm(0)  # Cancel timeout
+                        logger.error("Microphone operation timed out - audio device may be locked")
+                        self._center_head()
+                        return None
+                    finally:
+                        signal.alarm(0)  # Ensure timeout is always cancelled
+                        
                 except sr.WaitTimeoutError:
                     logger.debug("Listen timeout - returning to center")
                     self._center_head()  # Return to center if timeout
@@ -502,6 +532,7 @@ class BitsyAgent:
                 model="tts-1",
                 voice="nova",
                 input=text,
+                timeout=15  # 15 second timeout to prevent hanging
             )
             speech.stream_to_file(tmp_path)
             logger.debug(f"TTS generated in {time.time() - t0:.2f}s")
@@ -534,9 +565,9 @@ class BitsyAgent:
             except Exception as e:
                 logger.error(f"Head centering error: {e}")
                 print(f"Head centering error: {e}")
-            # give ALSA a moment before reopening microphone
-            logger.debug("Starting 0.8s delay before microphone")
-            time.sleep(0.8)
+            # give ALSA more time before reopening microphone
+            logger.debug("Starting 1.5s delay before microphone")
+            time.sleep(1.5)
             logger.debug("_speak method completed")
 
     def _fallback_tts(self, text: str) -> None:
