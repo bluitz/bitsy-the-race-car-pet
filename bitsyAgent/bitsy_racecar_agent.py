@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import time
+import logging
 from typing import Dict, Tuple, Optional
 
 import speech_recognition as sr
@@ -75,9 +76,21 @@ def _ensure_params_file() -> None:
 #  Low-level helpers
 # ---------------------------------------------------------------------------
 
-# Suppress JACK auto-start (avoids extra logs)
+# Suppress JACK auto-start and audio conflicts
 os.environ.setdefault("JACK_NO_START_SERVER", "1")
 os.environ.setdefault("JACK_NO_AUDIO_RESERVATION", "1")
+os.environ.setdefault("PULSE_RUNTIME_PATH", "/dev/null")
+
+# Set up comprehensive logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('bitsy_debug.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def _play_mp3(path: str) -> None:
     """Play an mp3 file synchronously via pygame mixer."""
@@ -315,9 +328,17 @@ class BitsyAgent:
     # ------------------------------------------------------------------
     def _center_head(self) -> None:
         """Center the head servos to neutral position."""
-        self.servo_ctrl.set_servo_pwm('0', 80)  # Horizontal center
-        self.servo_ctrl.set_servo_pwm('1', 115)  # Vertical center
-        time.sleep(0.5)
+        logger.debug("Starting head centering")
+        try:
+            self.servo_ctrl.set_servo_pwm('0', 80)  # Horizontal center
+            logger.debug("Set horizontal servo to 80")
+            self.servo_ctrl.set_servo_pwm('1', 115)  # Vertical center
+            logger.debug("Set vertical servo to 115")
+            time.sleep(0.5)
+            logger.debug("Head centering completed")
+        except Exception as e:
+            logger.error(f"Head centering failed: {e}")
+            raise
 
     def _head_happy(self) -> None:
         """Happy wiggle - quick left-right movements."""
@@ -388,9 +409,17 @@ class BitsyAgent:
 
     def _head_listening(self) -> None:
         """Subtle listening movement - slight tilt."""
-        self.servo_ctrl.set_servo_pwm('0', 75)  # Slight tilt
-        self.servo_ctrl.set_servo_pwm('1', 120)  # Slight up
-        time.sleep(0.5)
+        logger.debug("Starting listening head position")
+        try:
+            self.servo_ctrl.set_servo_pwm('0', 75)  # Slight tilt
+            logger.debug("Set horizontal listening position")
+            self.servo_ctrl.set_servo_pwm('1', 120)  # Slight up
+            logger.debug("Set vertical listening position")
+            time.sleep(0.5)
+            logger.debug("Listening head position completed")
+        except Exception as e:
+            logger.error(f"Head listening position failed: {e}")
+            # Don't raise - continue even if head movement fails
 
     def head_movement(self, emotion: str) -> str:
         """Express emotions through head movements with appropriate speech."""
@@ -430,29 +459,45 @@ class BitsyAgent:
     # ------------------------------------------------------------------
     def _listen_once(self) -> Optional[str]:
         """Capture one utterance and return transcript or None on failure."""
-        with self.microphone as src:
-            print("Listening…")
-            self._head_listening()  # Show that Bitsy is listening
-            try:
-                audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
-            except sr.WaitTimeoutError:
-                self._center_head()  # Return to center if timeout
-                return None
+        logger.debug("Starting _listen_once")
         try:
-            transcript = self.recogniser.recognize_google(audio)
-            print(f"Heard: {transcript}")
-            self._center_head()  # Center head after successful recognition
-            return transcript
-        except Exception as exc:
-            print(f"STT failed: {exc}")
-            self._center_head()  # Center head on failure
+            with self.microphone as src:
+                print("Listening…")
+                logger.debug("Microphone opened successfully")
+                self._head_listening()  # Show that Bitsy is listening
+                logger.debug("Head listening position set")
+                try:
+                    logger.debug("Starting recogniser.listen()")
+                    audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
+                    logger.debug("Audio captured successfully")
+                except sr.WaitTimeoutError:
+                    logger.debug("Listen timeout - returning to center")
+                    self._center_head()  # Return to center if timeout
+                    return None
+            
+            logger.debug("Processing audio with Google STT")
+            try:
+                transcript = self.recogniser.recognize_google(audio)
+                logger.debug(f"STT success: {transcript}")
+                print(f"Heard: {transcript}")
+                self._center_head()  # Center head after successful recognition
+                return transcript
+            except Exception as exc:
+                logger.error(f"STT failed: {exc}")
+                print(f"STT failed: {exc}")
+                self._center_head()  # Center head on failure
+                return None
+        except Exception as e:
+            logger.error(f"Critical error in _listen_once: {e}")
             return None
 
     def _speak(self, text: str) -> None:
         """Speak *text* using OpenAI TTS with graceful fallback and verbose logging."""
+        logger.debug(f"Starting _speak with text: {text[:50]}...")
         print("[Bitsy] Speaking:", text)
         tmp_path = "bitsy_response.mp3"
         try:
+            logger.debug("Generating TTS audio")
             t0 = time.time()
             speech = self.client.audio.speech.create(
                 model="tts-1",
@@ -460,28 +505,40 @@ class BitsyAgent:
                 input=text,
             )
             speech.stream_to_file(tmp_path)
+            logger.debug(f"TTS generated in {time.time() - t0:.2f}s")
             print(f"[TTS] Saved to {tmp_path} ({os.path.getsize(tmp_path)} bytes) in {time.time() - t0:.2f}s")
         except Exception as exc:
+            logger.error(f"TTS generation failed: {exc}")
             print("[TTS] Failed – using espeak fallback:", exc)
             self._fallback_tts(text)
             return
 
         try:
+            logger.debug("Starting audio playback")
             _play_mp3(tmp_path)
+            logger.debug("Audio playback completed")
             print("[TTS] Playback finished")
         except Exception as exc:
+            logger.error(f"Audio playback failed: {exc}")
             print("[TTS] Playback error – using espeak fallback:", exc)
             self._fallback_tts(text)
         finally:
+            logger.debug("Starting cleanup")
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+                logger.debug("Temp audio file removed")
             # Center head after speaking
             try:
+                logger.debug("Centering head after speaking")
                 self._center_head()
+                logger.debug("Head centered after speaking")
             except Exception as e:
+                logger.error(f"Head centering error: {e}")
                 print(f"Head centering error: {e}")
             # give ALSA a moment before reopening microphone
+            logger.debug("Starting 0.8s delay before microphone")
             time.sleep(0.8)
+            logger.debug("_speak method completed")
 
     def _fallback_tts(self, text: str) -> None:
         """Very simple espeak fallback so the user still hears something."""
@@ -526,14 +583,27 @@ class BitsyAgent:
     # ------------------------------------------------------------------
     def run_forever(self) -> None:
         """Main loop: listen, chat, act, speak."""
+        logger.info("Starting Bitsy main loop")
         while True:
-            transcript = self._listen_once()
-            if not transcript:
+            try:
+                logger.debug("=== Starting new conversation cycle ===")
+                transcript = self._listen_once()
+                if not transcript:
+                    logger.debug("No transcript received, continuing")
+                    continue
+                logger.debug(f"Processing transcript: {transcript}")
+                reply = self._chatgpt_round(transcript)
+                logger.debug(f"Generated reply: {reply[:100]}...")
+                print(f"Bitsy: {reply}")
+                if reply:
+                    self._speak(reply)
+                logger.debug("=== Conversation cycle completed ===")
+            except KeyboardInterrupt:
+                logger.info("Keyboard interrupt received, shutting down")
+                break
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
                 continue
-            reply = self._chatgpt_round(transcript)
-            print(f"Bitsy: {reply}")
-            if reply:
-                self._speak(reply)
 
 
 # ---------------------------------------------------------------------------
