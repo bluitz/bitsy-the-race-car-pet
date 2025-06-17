@@ -393,7 +393,7 @@ class BitsyAgent:
         time.sleep(0.5)
 
     def head_movement(self, emotion: str) -> str:
-        """Express emotions through head movements."""
+        """Express emotions through head movements with appropriate speech."""
         emotion_map = {
             "happy": self._head_happy,
             "excited": self._head_excited,
@@ -405,8 +405,23 @@ class BitsyAgent:
         }
         
         if emotion in emotion_map:
+            # Do the head movement
             emotion_map[emotion]()
-            return f"Expressing {emotion} with head movement!"
+            
+            # Generate appropriate response for the emotion
+            try:
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": f"You're feeling {emotion} and just did a cute head movement to show it. Say something short and appropriate that Bitsy would say while feeling {emotion}. Keep it very brief and excited like a happy puppy."}
+                    ],
+                    max_tokens=50
+                )
+                return response.choices[0].message.content or f"*does {emotion} head movement*"
+            except Exception as e:
+                print(f"Error generating emotion response: {e}")
+                return f"*wiggles head {emotion}ly*"
         else:
             return "Unknown emotion for head movement"
 
