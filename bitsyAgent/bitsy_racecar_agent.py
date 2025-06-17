@@ -41,6 +41,7 @@ for _path in _candidate_paths:
 try:
     from motor import Ordinary_Car  # type: ignore
     from led import Led  # type: ignore
+    from servo import Servo  # type: ignore
 except Exception as exc:  # pragma: no cover – hardware-dependent
     raise RuntimeError(
         "Could not import Freenove drivers. Tried paths:\n  " + "\n  ".join(_candidate_paths)
@@ -128,6 +129,8 @@ class BitsyAgent:
         # === Hardware ===
         self.car = Ordinary_Car()
         self.led_ctrl = Led()
+        self.servo_ctrl = Servo()
+        self._center_head()  # Start with head centered
 
         # === OpenAI client ===
         self.client = OpenAI()
@@ -201,6 +204,24 @@ class BitsyAgent:
                     "parameters": {"type": "object", "properties": {}},
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "head_movement",
+                    "description": "Express emotions through cute head movements like a pet",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "emotion": {
+                                "type": "string",
+                                "enum": ["happy", "excited", "curious", "confused", "sleepy", "alert", "playful"],
+                                "description": "The emotion to express through head movement",
+                            },
+                        },
+                        "required": ["emotion"],
+                    },
+                },
+            },
         ]
 
         self.system_prompt = (
@@ -216,12 +237,16 @@ class BitsyAgent:
             "- You speak like an excited young friend, using words like \"awesome\", \"cool\", \"wow\"\n"
             "- Keep responses short and energetic for a 5-year-old's attention span\n"
             "- Always be encouraging and positive\n"
+            "- You have a cute head that moves expressively like a pet when you feel emotions\n"
             "\n"
             "When the user says something, decide if they want you to:\n"
             "1. Drive/move (use drive function)\n"
             "2. Change lights (use led function)\n"
             "3. Stop (use stop function)\n"
-            "4. Just chat (use chat function)"
+            "4. Express emotions with head movements (use head_movement function)\n"
+            "5. Just chat (use chat function)\n"
+            "\n"
+            "Use head movements to show emotions like happy, excited, curious, confused, playful, etc."
         )
 
     # ---------------------------------------------------------------------
@@ -286,22 +311,126 @@ class BitsyAgent:
         return "Just chatting, no actions taken."
 
     # ------------------------------------------------------------------
+    #  Head movement methods for emotional expressions
+    # ------------------------------------------------------------------
+    def _center_head(self) -> None:
+        """Center the head servos to neutral position."""
+        self.servo_ctrl.set_servo_pwm('0', 80)  # Horizontal center
+        self.servo_ctrl.set_servo_pwm('1', 115)  # Vertical center
+        time.sleep(0.5)
+
+    def _head_happy(self) -> None:
+        """Happy wiggle - quick left-right movements."""
+        for _ in range(3):
+            self.servo_ctrl.set_servo_pwm('0', 60)  # Left
+            time.sleep(0.15)
+            self.servo_ctrl.set_servo_pwm('0', 100)  # Right
+            time.sleep(0.15)
+        self._center_head()
+
+    def _head_excited(self) -> None:
+        """Excited nods - fast up-down movements."""
+        for _ in range(4):
+            self.servo_ctrl.set_servo_pwm('1', 100)  # Down
+            time.sleep(0.1)
+            self.servo_ctrl.set_servo_pwm('1', 130)  # Up
+            time.sleep(0.1)
+        self._center_head()
+
+    def _head_curious(self) -> None:
+        """Curious tilt - slow side movements with pauses."""
+        self.servo_ctrl.set_servo_pwm('0', 60)  # Tilt left
+        time.sleep(0.8)
+        self.servo_ctrl.set_servo_pwm('0', 100)  # Tilt right
+        time.sleep(0.8)
+        self._center_head()
+
+    def _head_confused(self) -> None:
+        """Confused shake - small left-right shakes."""
+        for _ in range(5):
+            self.servo_ctrl.set_servo_pwm('0', 75)  # Slightly left
+            time.sleep(0.08)
+            self.servo_ctrl.set_servo_pwm('0', 85)  # Slightly right
+            time.sleep(0.08)
+        self._center_head()
+
+    def _head_sleepy(self) -> None:
+        """Sleepy droop - slow downward movement."""
+        for pos in range(115, 95, -2):
+            self.servo_ctrl.set_servo_pwm('1', pos)
+            time.sleep(0.1)
+        time.sleep(1)
+        self._center_head()
+
+    def _head_alert(self) -> None:
+        """Alert posture - quick upward movement and scan."""
+        self.servo_ctrl.set_servo_pwm('1', 135)  # Look up
+        time.sleep(0.3)
+        self.servo_ctrl.set_servo_pwm('0', 60)   # Look left
+        time.sleep(0.3)
+        self.servo_ctrl.set_servo_pwm('0', 100)  # Look right
+        time.sleep(0.3)
+        self._center_head()
+
+    def _head_playful(self) -> None:
+        """Playful bounces - mix of movements."""
+        # Quick bounce
+        self.servo_ctrl.set_servo_pwm('1', 105)
+        time.sleep(0.1)
+        self.servo_ctrl.set_servo_pwm('1', 125)
+        time.sleep(0.1)
+        # Side wiggle
+        self.servo_ctrl.set_servo_pwm('0', 70)
+        time.sleep(0.2)
+        self.servo_ctrl.set_servo_pwm('0', 90)
+        time.sleep(0.2)
+        self._center_head()
+
+    def _head_listening(self) -> None:
+        """Subtle listening movement - slight tilt."""
+        self.servo_ctrl.set_servo_pwm('0', 75)  # Slight tilt
+        self.servo_ctrl.set_servo_pwm('1', 120)  # Slight up
+        time.sleep(0.5)
+
+    def head_movement(self, emotion: str) -> str:
+        """Express emotions through head movements."""
+        emotion_map = {
+            "happy": self._head_happy,
+            "excited": self._head_excited,
+            "curious": self._head_curious,
+            "confused": self._head_confused,
+            "sleepy": self._head_sleepy,
+            "alert": self._head_alert,
+            "playful": self._head_playful,
+        }
+        
+        if emotion in emotion_map:
+            emotion_map[emotion]()
+            return f"Expressing {emotion} with head movement!"
+        else:
+            return "Unknown emotion for head movement"
+
+    # ------------------------------------------------------------------
     #  STT → ChatGPT → Action loop
     # ------------------------------------------------------------------
     def _listen_once(self) -> Optional[str]:
         """Capture one utterance and return transcript or None on failure."""
         with self.microphone as src:
             print("Listening…")
+            self._head_listening()  # Show that Bitsy is listening
             try:
                 audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
             except sr.WaitTimeoutError:
+                self._center_head()  # Return to center if timeout
                 return None
         try:
             transcript = self.recogniser.recognize_google(audio)
             print(f"Heard: {transcript}")
+            self._center_head()  # Center head after successful recognition
             return transcript
         except Exception as exc:
             print(f"STT failed: {exc}")
+            self._center_head()  # Center head on failure
             return None
 
     def _speak(self, text: str) -> None:
@@ -331,6 +460,11 @@ class BitsyAgent:
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+            # Center head after speaking
+            try:
+                self._center_head()
+            except Exception as e:
+                print(f"Head centering error: {e}")
             # give ALSA a moment before reopening microphone
             time.sleep(0.8)
 
