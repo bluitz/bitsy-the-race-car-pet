@@ -93,29 +93,50 @@ logger = logging.getLogger(__name__)
 
 def _play_mp3(path: str) -> None:
     """Play an mp3 file synchronously via pygame mixer."""
+    logger.debug(f"Starting audio playback: {path}")
     try:
         # Ensure mixer is completely clean before starting
         try:
             if mixer.get_init():
+                logger.debug("Stopping and quitting existing mixer")
                 mixer.music.stop()
                 mixer.quit()
-                time.sleep(0.1)  # Give time for device release
+                time.sleep(0.2)  # Give time for device release
         except:
             pass
             
+        logger.debug("Initializing new mixer")
         mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
         mixer.music.load(path)
         mixer.music.play()
+        logger.debug("Audio playback started")
+        
         while mixer.music.get_busy():
             time.sleep(0.05)
+        logger.debug("Audio playback completed")
+        
     finally:
-        # Always quit mixer to release ALSA device for microphone
+        # Aggressive cleanup to ensure audio device release
+        logger.debug("Starting aggressive audio cleanup")
         try:
             mixer.music.stop()
-            mixer.quit()
-            time.sleep(0.2)  # Longer delay to ensure device release
-        except Exception:
+            mixer.music.unload()  # Try to unload the file
+        except:
             pass
+        try:
+            mixer.quit()
+        except:
+            pass
+        
+        # Even more aggressive - try to reinitialize and quit again
+        try:
+            mixer.init()
+            mixer.quit()
+        except:
+            pass
+            
+        logger.debug("Audio cleanup completed")
+        time.sleep(0.3)  # Longer delay to ensure device release
 
 
 def _colour_name_to_rgb(name: str) -> Tuple[int, int, int]:
@@ -144,15 +165,22 @@ def _colour_name_to_rgb(name: str) -> Tuple[int, int, int]:
 class BitsyAgent:
     """Voice-controlled race-car agent driven by OpenAI function-calling."""
 
-    def __init__(self, mic_index: Optional[int] = None):
+    def __init__(self, mic_index: Optional[int] = None, disable_head_movements: bool = False):
         # Ensure parameter file exists *before* importing LED driver (avoids prompts)
         _ensure_params_file()
 
         # === Hardware ===
         self.car = Ordinary_Car()
         self.led_ctrl = Led()
-        self.servo_ctrl = Servo()
-        self._center_head()  # Start with head centered
+        
+        # Debug option to disable head movements
+        self.disable_head_movements = disable_head_movements
+        if not disable_head_movements:
+            self.servo_ctrl = Servo()
+            self._center_head()  # Start with head centered
+        else:
+            logger.info("Head movements disabled for debugging")
+            self.servo_ctrl = None
 
         # === OpenAI client ===
         self.client = OpenAI()
@@ -329,8 +357,32 @@ class BitsyAgent:
         return "All stopped!"
 
     def chat(self) -> str:  # noqa: D401  – simplest placeholder
-        """No action – just chatting."""
-        return "Just chatting, no actions taken."
+        """Generate a silly, funny response for general conversation."""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": "Say something super silly, funny, and random that would make a 5-year-old laugh! Be completely goofy and weird like a silly robot pet. Keep it very short and use lots of silly sounds or funny words!"}
+                ],
+                max_tokens=50
+            )
+            return response.choices[0].message.content or "*beep boop makes silly robot noises*"
+        except Exception as e:
+            print(f"Error generating silly response: {e}")
+            # Fallback silly responses
+            import random
+            silly_responses = [
+                "*BEEP BOOP* I'm a silly robot sandwich!",
+                "Did you know I dream about flying tacos? VROOOOM!",
+                "*makes robot dinosaur noises* RAWR-BEEP!",
+                "I just learned how to wiggle my antenna! *wiggles*",
+                "My favorite snack is motor oil with sprinkles! YUM!",
+                "*spins in circles* WHEEEEE! I'm dizzy now!",
+                "I think I'm part unicorn because I'm MAGICAL!",
+                "*honks like a silly horn* HONK HONK BEEP!"
+            ]
+            return random.choice(silly_responses)
 
     # ------------------------------------------------------------------
     #  Head movement methods for emotional expressions
@@ -339,12 +391,15 @@ class BitsyAgent:
         """Center the head servos to neutral position."""
         logger.debug("Starting head centering")
         try:
-            self.servo_ctrl.set_servo_pwm('0', 80)  # Horizontal center
-            logger.debug("Set horizontal servo to 80")
-            self.servo_ctrl.set_servo_pwm('1', 115)  # Vertical center
-            logger.debug("Set vertical servo to 115")
-            time.sleep(0.5)
-            logger.debug("Head centering completed")
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('0', 80)  # Horizontal center
+                logger.debug("Set horizontal servo to 80")
+                self.servo_ctrl.set_servo_pwm('1', 115)  # Vertical center
+                logger.debug("Set vertical servo to 115")
+                time.sleep(0.5)
+                logger.debug("Head centering completed")
+            else:
+                logger.info("Head movements disabled for debugging")
         except Exception as e:
             logger.error(f"Head centering failed: {e}")
             raise
@@ -352,80 +407,91 @@ class BitsyAgent:
     def _head_happy(self) -> None:
         """Happy wiggle - quick left-right movements."""
         for _ in range(3):
-            self.servo_ctrl.set_servo_pwm('0', 60)  # Left
-            time.sleep(0.15)
-            self.servo_ctrl.set_servo_pwm('0', 100)  # Right
-            time.sleep(0.15)
-        self._center_head()
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('0', 60)  # Left
+                time.sleep(0.15)
+                self.servo_ctrl.set_servo_pwm('0', 100)  # Right
+                time.sleep(0.15)
+            self._center_head()
 
     def _head_excited(self) -> None:
         """Excited nods - fast up-down movements."""
         for _ in range(4):
-            self.servo_ctrl.set_servo_pwm('1', 100)  # Down
-            time.sleep(0.1)
-            self.servo_ctrl.set_servo_pwm('1', 130)  # Up
-            time.sleep(0.1)
-        self._center_head()
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('1', 100)  # Down
+                time.sleep(0.1)
+                self.servo_ctrl.set_servo_pwm('1', 130)  # Up
+                time.sleep(0.1)
+            self._center_head()
 
     def _head_curious(self) -> None:
         """Curious tilt - slow side movements with pauses."""
-        self.servo_ctrl.set_servo_pwm('0', 60)  # Tilt left
-        time.sleep(0.8)
-        self.servo_ctrl.set_servo_pwm('0', 100)  # Tilt right
-        time.sleep(0.8)
+        if self.servo_ctrl:
+            self.servo_ctrl.set_servo_pwm('0', 60)  # Tilt left
+            time.sleep(0.8)
+            self.servo_ctrl.set_servo_pwm('0', 100)  # Tilt right
+            time.sleep(0.8)
         self._center_head()
 
     def _head_confused(self) -> None:
         """Confused shake - small left-right shakes."""
         for _ in range(5):
-            self.servo_ctrl.set_servo_pwm('0', 75)  # Slightly left
-            time.sleep(0.08)
-            self.servo_ctrl.set_servo_pwm('0', 85)  # Slightly right
-            time.sleep(0.08)
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('0', 75)  # Slightly left
+                time.sleep(0.08)
+                self.servo_ctrl.set_servo_pwm('0', 85)  # Slightly right
+                time.sleep(0.08)
         self._center_head()
 
     def _head_sleepy(self) -> None:
         """Sleepy droop - slow downward movement."""
         for pos in range(115, 95, -2):
-            self.servo_ctrl.set_servo_pwm('1', pos)
-            time.sleep(0.1)
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('1', pos)
+                time.sleep(0.1)
         time.sleep(1)
         self._center_head()
 
     def _head_alert(self) -> None:
         """Alert posture - quick upward movement and scan."""
-        self.servo_ctrl.set_servo_pwm('1', 135)  # Look up
-        time.sleep(0.3)
-        self.servo_ctrl.set_servo_pwm('0', 60)   # Look left
-        time.sleep(0.3)
-        self.servo_ctrl.set_servo_pwm('0', 100)  # Look right
-        time.sleep(0.3)
+        if self.servo_ctrl:
+            self.servo_ctrl.set_servo_pwm('1', 135)  # Look up
+            time.sleep(0.3)
+            self.servo_ctrl.set_servo_pwm('0', 60)   # Look left
+            time.sleep(0.3)
+            self.servo_ctrl.set_servo_pwm('0', 100)  # Look right
+            time.sleep(0.3)
         self._center_head()
 
     def _head_playful(self) -> None:
         """Playful bounces - mix of movements."""
         # Quick bounce
-        self.servo_ctrl.set_servo_pwm('1', 105)
-        time.sleep(0.1)
-        self.servo_ctrl.set_servo_pwm('1', 125)
-        time.sleep(0.1)
+        if self.servo_ctrl:
+            self.servo_ctrl.set_servo_pwm('1', 105)
+            time.sleep(0.1)
+            self.servo_ctrl.set_servo_pwm('1', 125)
+            time.sleep(0.1)
         # Side wiggle
-        self.servo_ctrl.set_servo_pwm('0', 70)
-        time.sleep(0.2)
-        self.servo_ctrl.set_servo_pwm('0', 90)
-        time.sleep(0.2)
+        if self.servo_ctrl:
+            self.servo_ctrl.set_servo_pwm('0', 70)
+            time.sleep(0.2)
+            self.servo_ctrl.set_servo_pwm('0', 90)
+            time.sleep(0.2)
         self._center_head()
 
     def _head_listening(self) -> None:
         """Subtle listening movement - slight tilt."""
         logger.debug("Starting listening head position")
         try:
-            self.servo_ctrl.set_servo_pwm('0', 75)  # Slight tilt
-            logger.debug("Set horizontal listening position")
-            self.servo_ctrl.set_servo_pwm('1', 120)  # Slight up
-            logger.debug("Set vertical listening position")
-            time.sleep(0.5)
-            logger.debug("Listening head position completed")
+            if self.servo_ctrl:
+                self.servo_ctrl.set_servo_pwm('0', 75)  # Slight tilt
+                logger.debug("Set horizontal listening position")
+                self.servo_ctrl.set_servo_pwm('1', 120)  # Slight up
+                logger.debug("Set vertical listening position")
+                time.sleep(0.5)
+                logger.debug("Listening head position completed")
+            else:
+                logger.info("Head movements disabled for debugging")
         except Exception as e:
             logger.error(f"Head listening position failed: {e}")
             # Don't raise - continue even if head movement fails
@@ -477,31 +543,46 @@ class BitsyAgent:
                 logger.debug("Head listening position set")
                 try:
                     logger.debug("Starting recogniser.listen()")
-                    # Add timeout to prevent hanging on microphone access
-                    import signal
                     
-                    def timeout_handler(signum, frame):
-                        raise TimeoutError("Microphone listen operation timed out")
-                    
-                    # Set up timeout for microphone operation
-                    signal.signal(signal.SIGALRM, timeout_handler)
-                    signal.alarm(12)  # 12 second timeout (2 seconds more than listen timeout)
-                    
+                    # Check what's using the audio device
                     try:
-                        audio = self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
-                        signal.alarm(0)  # Cancel timeout
-                        logger.debug("Audio captured successfully")
-                    except TimeoutError:
-                        signal.alarm(0)  # Cancel timeout
-                        logger.error("Microphone operation timed out - audio device may be locked")
-                        self._center_head()
-                        return None
-                    finally:
-                        signal.alarm(0)  # Ensure timeout is always cancelled
+                        import subprocess
+                        result = subprocess.run(['sudo', 'lsof', '/dev/snd/*'], 
+                                              capture_output=True, text=True, timeout=2)
+                        if result.stdout:
+                            logger.debug(f"Audio device usage: {result.stdout}")
+                        else:
+                            logger.debug("No processes using audio device")
+                    except:
+                        logger.debug("Could not check audio device usage")
+                    
+                    # Use thread-based timeout instead of signal (more reliable with C libraries)
+                    import concurrent.futures
+                    
+                    def do_listen():
+                        return self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
+                    
+                    # Run microphone operation in separate thread with timeout
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(do_listen)
+                        try:
+                            audio = future.result(timeout=12)  # 12 second timeout
+                            logger.debug("Audio captured successfully")
+                        except concurrent.futures.TimeoutError:
+                            logger.error("Microphone operation timed out - audio device may be locked")
+                            self._center_head()
+                            logger.debug("_listen_once returning None due to timeout")
+                            return None
+                        except Exception as e:
+                            logger.error(f"Microphone operation failed: {e}")
+                            self._center_head()
+                            logger.debug("_listen_once returning None due to microphone error")
+                            return None
                         
                 except sr.WaitTimeoutError:
                     logger.debug("Listen timeout - returning to center")
                     self._center_head()  # Return to center if timeout
+                    logger.debug("_listen_once returning None due to WaitTimeoutError")
                     return None
             
             logger.debug("Processing audio with Google STT")
@@ -510,14 +591,22 @@ class BitsyAgent:
                 logger.debug(f"STT success: {transcript}")
                 print(f"Heard: {transcript}")
                 self._center_head()  # Center head after successful recognition
+                logger.debug(f"_listen_once returning transcript: {transcript}")
                 return transcript
             except Exception as exc:
                 logger.error(f"STT failed: {exc}")
                 print(f"STT failed: {exc}")
                 self._center_head()  # Center head on failure
+                logger.debug("_listen_once returning None due to STT failure")
                 return None
         except Exception as e:
             logger.error(f"Critical error in _listen_once: {e}")
+            logger.exception("Full traceback for _listen_once error:")
+            try:
+                self._center_head()
+            except:
+                logger.error("Failed to center head after critical error")
+            logger.debug("_listen_once returning None due to critical error")
             return None
 
     def _speak(self, text: str) -> None:
@@ -617,10 +706,14 @@ class BitsyAgent:
         while True:
             try:
                 logger.debug("=== Starting new conversation cycle ===")
+                logger.debug("About to call _listen_once()")
                 transcript = self._listen_once()
+                logger.debug(f"_listen_once() returned: {transcript}")
+                
                 if not transcript:
-                    logger.debug("No transcript received, continuing")
+                    logger.debug("No transcript received, continuing to next cycle")
                     continue
+                    
                 logger.debug(f"Processing transcript: {transcript}")
                 reply = self._chatgpt_round(transcript)
                 logger.debug(f"Generated reply: {reply[:100]}...")
@@ -633,6 +726,7 @@ class BitsyAgent:
                 break
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
+                logger.exception("Full traceback:")  # This will show the full stack trace
                 continue
 
 
@@ -653,8 +747,15 @@ def _find_default_mic() -> Optional[int]:
 
 
 def main() -> None:  # pragma: no cover
+    import sys
+    
+    # Check for debug flag
+    disable_head = "--no-head" in sys.argv
+    if disable_head:
+        print("Running in debug mode with head movements DISABLED")
+    
     idx = _find_default_mic()
-    agent = BitsyAgent(mic_index=idx)
+    agent = BitsyAgent(mic_index=idx, disable_head_movements=disable_head)
     agent.run_forever()
 
 
