@@ -20,19 +20,54 @@ from openai import OpenAI
 # ---------------------------------------------------------------------------
 #  Hardware drivers (Freenove library)
 # ---------------------------------------------------------------------------
+# Attempt to locate the Freenove "Code/Server" directory that contains motor.py
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FREENOVE_PATH = os.path.join(
-    PROJECT_ROOT, "Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi-master", "Code", "Server"
-)
-sys.path.append(FREENOVE_PATH)
+
+_candidate_paths = [
+    # 1) Within this repo (as when running in dev environment)
+    os.path.join(PROJECT_ROOT, "Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi-master", "Code", "Server"),
+    # 2) A sibling directory to bitsyAgent (common on the Pi)
+    os.path.join(os.path.dirname(PROJECT_ROOT), "Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi-master", "Code", "Server"),
+    # 3) Installed under home
+    os.path.join(os.path.expanduser("~"), "Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi-master", "Code", "Server"),
+    os.path.join(os.path.expanduser("~"), "Freenove_4WD_Smart_Car_Kit_for_Raspberry_Pi", "Code", "Server"),
+]
+
+for _path in _candidate_paths:
+    if os.path.exists(os.path.join(_path, "motor.py")):
+        sys.path.append(_path)
+        break
 
 try:
-    from motor import Ordinary_Car  # pylint: disable=import-error
-    from led import Led  # pylint: disable=import-error
+    from motor import Ordinary_Car  # type: ignore
+    from led import Led  # type: ignore
 except Exception as exc:  # pragma: no cover – hardware-dependent
     raise RuntimeError(
-        "Could not import Freenove drivers. Ensure they are installed and the path is correct."
+        "Could not import Freenove drivers. Tried paths:\n  " + "\n  ".join(_candidate_paths)
     ) from exc
+
+PARAM_FILE = os.path.join(os.path.dirname(__file__), "params.json")
+
+# ---------------------------------------------------------------------------
+#  Ensure Freenove params.json exists to avoid interactive prompt
+# ---------------------------------------------------------------------------
+
+def _ensure_params_file() -> None:
+    """Create a minimal params.json if it doesn't already exist."""
+    if os.path.exists(PARAM_FILE):
+        return
+
+    default_params = {
+        "Connect_Version": 2,  # 2 = SPI LED strip on newer kits
+        "Pcb_Version": 1,      # 1 = ordinary PCB (adjust if needed)
+        "Pi_Version": 1,       # 1 = Pi 4 / earlier
+    }
+    try:
+        with open(PARAM_FILE, "w", encoding="utf-8") as fh:
+            json.dump(default_params, fh, indent=4)
+        print(f"Created default {PARAM_FILE} for Freenove drivers.")
+    except Exception as exc:  # pragma: no cover
+        print(f"Warning: could not create {PARAM_FILE}: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +110,9 @@ class BitsyAgent:
     """Voice-controlled race-car agent driven by OpenAI function-calling."""
 
     def __init__(self, mic_index: Optional[int] = None):
+        # Ensure parameter file exists *before* importing LED driver (avoids prompts)
+        _ensure_params_file()
+
         # === Hardware ===
         self.car = Ordinary_Car()
         self.led_ctrl = Led()
