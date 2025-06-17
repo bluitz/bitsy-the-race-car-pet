@@ -74,13 +74,25 @@ def _ensure_params_file() -> None:
 #  Low-level helpers
 # ---------------------------------------------------------------------------
 
+# Suppress JACK auto-start (avoids extra logs)
+os.environ.setdefault("JACK_NO_START_SERVER", "1")
+os.environ.setdefault("JACK_NO_AUDIO_RESERVATION", "1")
+
 def _play_mp3(path: str) -> None:
     """Play an mp3 file synchronously via pygame mixer."""
-    mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
-    mixer.music.load(path)
-    mixer.music.play()
-    while mixer.music.get_busy():
-        time.sleep(0.05)
+    try:
+        if not mixer.get_init():
+            mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+        mixer.music.load(path)
+        mixer.music.play()
+        while mixer.music.get_busy():
+            time.sleep(0.05)
+    finally:
+        # Always quit mixer to release ALSA device for microphone
+        try:
+            mixer.quit()
+        except Exception:
+            pass
 
 
 def _colour_name_to_rgb(name: str) -> Tuple[int, int, int]:
@@ -293,18 +305,38 @@ class BitsyAgent:
             return None
 
     def _speak(self, text: str) -> None:
-        """Use OpenAI TTS to speak *text* aloud."""
-        t0 = time.time()
-        response = self.client.audio.speech.create(
-            model="tts-1",
-            voice="alloy",
-            input=text,
-        )
+        """Speak *text* using OpenAI TTS with graceful fallback and verbose logging."""
+        print("[Bitsy] Speaking:", text)
         tmp_path = "bitsy_response.mp3"
-        response.stream_to_file(tmp_path)
-        print(f"[TTS] Synthesised in {time.time() - t0:.2f}s – playing…")
-        _play_mp3(tmp_path)
-        os.remove(tmp_path)
+        try:
+            t0 = time.time()
+            speech = self.client.audio.speech.create(
+                model="tts-1",
+                voice="alloy",
+                input=text,
+            )
+            speech.stream_to_file(tmp_path)
+            print(f"[TTS] Saved to {tmp_path} ({os.path.getsize(tmp_path)} bytes) in {time.time() - t0:.2f}s")
+        except Exception as exc:
+            print("[TTS] Failed – using espeak fallback:", exc)
+            self._fallback_tts(text)
+            return
+
+        try:
+            _play_mp3(tmp_path)
+            print("[TTS] Playback finished")
+        except Exception as exc:
+            print("[TTS] Playback error – using espeak fallback:", exc)
+            self._fallback_tts(text)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            # give ALSA a moment before reopening microphone
+            time.sleep(0.8)
+
+    def _fallback_tts(self, text: str) -> None:
+        """Very simple espeak fallback so the user still hears something."""
+        os.system(f'espeak "{text}" 2>/dev/null')
 
     def _chatgpt_round(self, transcript: str) -> str:
         """Send *transcript* to ChatGPT using function-calling and act on the results."""
