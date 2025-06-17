@@ -79,7 +79,6 @@ def _ensure_params_file() -> None:
 # Suppress JACK auto-start and audio conflicts
 os.environ.setdefault("JACK_NO_START_SERVER", "1")
 os.environ.setdefault("JACK_NO_AUDIO_RESERVATION", "1")
-os.environ.setdefault("PULSE_RUNTIME_PATH", "/dev/null")
 
 # Set up comprehensive logging
 logging.basicConfig(
