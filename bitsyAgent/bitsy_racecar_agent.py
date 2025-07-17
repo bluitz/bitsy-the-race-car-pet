@@ -272,6 +272,24 @@ class BitsyAgent:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "follow_voice",
+                    "description": "Come toward the user's voice when called",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "enthusiasm": {
+                                "type": "string",
+                                "enum": ["slow", "normal", "excited"],
+                                "description": "How eagerly to come when called",
+                            },
+                        },
+                        "required": [],
+                    },
+                },
+            },
         ]
 
         self.system_prompt = (
@@ -288,15 +306,18 @@ class BitsyAgent:
             "- Keep responses short and energetic for a 5-year-old's attention span\n"
             "- Always be encouraging and positive\n"
             "- You have a cute head that moves expressively like a pet when you feel emotions\n"
+            "- You love coming when called like a loyal pet dog\n"
             "\n"
             "When the user says something, decide if they want you to:\n"
             "1. Drive/move (use drive function)\n"
             "2. Change lights (use led function)\n"
             "3. Stop (use stop function)\n"
             "4. Express emotions with head movements (use head_movement function)\n"
-            "5. Just chat (use chat function)\n"
+            "5. Come to them when called (use follow_voice function for words like 'come', 'here', 'come here')\n"
+            "6. Just chat (use chat function)\n"
             "\n"
-            "Use head movements to show emotions like happy, excited, curious, confused, playful, etc."
+            "Use head movements to show emotions like happy, excited, curious, confused, playful, etc.\n"
+            "Use follow_voice when they call you to come like 'Come Bitsy', 'Come here', 'Here Bitsy'."
         )
 
     # ---------------------------------------------------------------------
@@ -383,6 +404,59 @@ class BitsyAgent:
                 "*honks like a silly horn* HONK HONK BEEP!"
             ]
             return random.choice(silly_responses)
+
+    def follow_voice(self, enthusiasm: str = "normal") -> str:
+        """Come toward the user's voice like a loyal pet."""
+        logger.debug(f"Following voice with {enthusiasm} enthusiasm")
+        
+        # Set speed based on enthusiasm
+        speed_map = {"slow": 1500, "normal": 2000, "excited": 2800}
+        speed = speed_map.get(enthusiasm, 2000)
+        
+        # Show excitement with head movement if available
+        if not self.disable_head_movements and self.servo_ctrl:
+            try:
+                # Quick excited nod before coming
+                for _ in range(2):
+                    self.servo_ctrl.set_servo_pwm('1', 110)
+                    time.sleep(0.1)
+                    self.servo_ctrl.set_servo_pwm('1', 125)
+                    time.sleep(0.1)
+                self._center_head()
+            except Exception as e:
+                logger.error(f"Head movement failed during follow: {e}")
+        
+        # Move forward toward the voice
+        try:
+            # Move forward for a reasonable distance
+            move_time = 1.5 if enthusiasm == "slow" else 2.0 if enthusiasm == "normal" else 2.5
+            
+            logger.debug(f"Moving forward at speed {speed} for {move_time}s")
+            self.car.set_motor_model(speed, speed, speed, speed)
+            time.sleep(move_time)
+            
+            # Stop
+            self.car.set_motor_model(0, 0, 0, 0)
+            logger.debug("Stopped movement")
+            
+            # Generate appropriate response
+            try:
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": f"You just came running to your owner when they called you, like a good pet! You moved with {enthusiasm} enthusiasm. Say something short and excited that shows you're happy to come when called."}
+                    ],
+                    max_tokens=50
+                )
+                return response.choices[0].message.content or f"*comes running {enthusiasm}ly* Woof! I'm here!"
+            except Exception as e:
+                print(f"Error generating follow response: {e}")
+                return f"*comes running {enthusiasm}ly* I'm here! I'm here!"
+                
+        except Exception as e:
+            logger.error(f"Movement failed during follow: {e}")
+            return "I tried to come to you but had trouble moving!"
 
     # ------------------------------------------------------------------
     #  Head movement methods for emotional expressions
@@ -563,21 +637,32 @@ class BitsyAgent:
                         return self.recogniser.listen(src, timeout=10, phrase_time_limit=6)
                     
                     # Run microphone operation in separate thread with timeout
+                    logger.debug("Creating ThreadPoolExecutor for microphone operation")
                     with concurrent.futures.ThreadPoolExecutor() as executor:
+                        logger.debug("Submitting microphone task to thread pool")
                         future = executor.submit(do_listen)
                         try:
+                            logger.debug("Waiting for microphone result with 12s timeout")
                             audio = future.result(timeout=12)  # 12 second timeout
                             logger.debug("Audio captured successfully")
                         except concurrent.futures.TimeoutError:
                             logger.error("Microphone operation timed out - audio device may be locked")
+                            logger.debug("Attempting to cancel future task")
+                            future.cancel()  # Try to cancel the hanging task
+                            logger.debug("Centering head after timeout")
                             self._center_head()
                             logger.debug("_listen_once returning None due to timeout")
                             return None
                         except Exception as e:
                             logger.error(f"Microphone operation failed: {e}")
+                            logger.debug("Attempting to cancel future task after exception")
+                            future.cancel()
+                            logger.debug("Centering head after microphone error")
                             self._center_head()
                             logger.debug("_listen_once returning None due to microphone error")
                             return None
+                    
+                    logger.debug("ThreadPoolExecutor context manager exited successfully")
                         
                 except sr.WaitTimeoutError:
                     logger.debug("Listen timeout - returning to center")
@@ -705,13 +790,16 @@ class BitsyAgent:
         logger.info("Starting Bitsy main loop")
         while True:
             try:
-                logger.debug("=== Starting new conversation cycle ===")
+                logger.info("=== Starting new conversation cycle ===")
+                logger.debug(f"Loop iteration at {time.time()}")
                 logger.debug("About to call _listen_once()")
                 transcript = self._listen_once()
                 logger.debug(f"_listen_once() returned: {transcript}")
                 
                 if not transcript:
                     logger.debug("No transcript received, continuing to next cycle")
+                    time.sleep(0.5)  # Small delay to prevent rapid cycling
+                    logger.debug("About to execute continue statement - jumping to start of loop")
                     continue
                     
                 logger.debug(f"Processing transcript: {transcript}")
