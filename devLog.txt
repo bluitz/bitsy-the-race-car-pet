@@ -50,3 +50,11 @@ venv☁  jerry-in-a-box [main] ⚡
 
    source ~/venv/bin/activate
    ~/venv/bin/pip install -r ~/requirements.txt
+
+
+   cd ~/bitsyAgent/
+source venv/bin/activate
+python3 -m jerry_in_a_box.voice_responder
+
+
+source venv/bin/activate && python3 bitsyAgent/bitsy_racecar_agent.py 
