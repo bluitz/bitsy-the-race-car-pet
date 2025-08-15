@@ -1,2 +1,0 @@
-[console_scripts]
-jerry-in-a-box = jerry_in_a_box.main:main
