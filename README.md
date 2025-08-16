@@ -1,4 +1,4 @@
-# 🏎️ Bitsy the Race Car Pet 🤖
+# 🏎️ Bitsy the Agentic Race Car Pet Robot 🤖
 
 > _A fully autonomous AI-powered robot companion that transforms a simple RC car into an emotionally expressive, voice-controlled pet_
 
