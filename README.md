@@ -2,7 +2,20 @@
 
 > _A fully autonomous AI-powered robot companion that transforms a simple RC car into an emotionally expressive, voice-controlled pet_
 
-![Bitsy the Race Car Pet](pics/bitsy.jpg)
+
+
+https://github.com/user-attachments/assets/944ea4c9-11e9-4a9b-84b1-9eb7f519c796
+
+
+
+https://github.com/user-attachments/assets/36a43af6-f603-41c8-9efd-b5e49589a974
+
+
+
+
+https://github.com/user-attachments/assets/40f5c7bf-0e43-4f87-a901-ce57f81b76db
+
+
 
 ## 🌟 What is Bitsy?
 
@@ -191,3 +204,5 @@ Interested in extending Bitsy's capabilities? Pull requests welcome! This projec
 ## 📄 License
 
 MIT License - Feel free to build your own Bitsy!
+
+
